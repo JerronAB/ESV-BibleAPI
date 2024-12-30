@@ -63,6 +63,7 @@ func createMapOfVerses(bible_slice *[]BibleVerse) map[string]string { //this is 
 		access_string := fmt.Sprint(verse.Book, " ", verse.Chapter, ":", verse.VerseNumber)
 		mapOfVerses[access_string] = verse.VerseStr
 	}
+	log.Println("Verse map has been processed. ")
 	return mapOfVerses
 }
 
@@ -77,7 +78,7 @@ func scanBibleFromTxtFile(file_name string) map[string]string { //this is curren
 
 	scanner := bufio.NewScanner(bibleTxtFile) //using bufio.Scanner because it takes data in auto-sized chunks
 	for scanner.Scan() {                      //runtime largely doesn't matter on this, so this is somewhat inefficient
-		fmt.Println(scanner.Text())
+		//fmt.Println(scanner.Text())
 		colonIndex := strings.Index(scanner.Text(), ":")
 		switch { //just including a switch in case I want to expand this logic in the future
 		case colonIndex < 8 && colonIndex != -1 && unicode.IsNumber(rune(scanner.Text()[colonIndex-1])) && strings.Count(scanner.Text(), " ") > 1: //this is a new verse; it also only works because of short-circuiting (look up)
@@ -100,7 +101,7 @@ func scanBibleFromTxtFile(file_name string) map[string]string { //this is curren
 					}
 					return BibleVerse{Book: book_chptr[0], Chapter: uint8(chptr), VerseNumber: uint8(verse), VerseStr: verse_verseLine[1]}
 				}(scanner.Text()))
-			fmt.Println("Verses added: ", len(bible))
+			//fmt.Println("Verses added: ", len(bible))
 		default:
 			lastVerse := bible[len(bible)-1]
 			lastVerse.VerseStr += " " + scanner.Text()
@@ -132,9 +133,9 @@ func handler(mapOfVerses *map[string]string) http.HandlerFunc {
 			http.Error(w, "Verse not found", http.StatusNotFound)
 			return
 		}
-		elapsed := time.Since(start_time).Nanoseconds()
+		elapsed := time.Since(start_time).Milliseconds()
 		log.Println(verse)
-		log.Printf("Total execution time for this lookup: %d ns\n", elapsed)
+		log.Printf("Total execution time for this lookup: %d ms\n", elapsed)
 		fmt.Fprintf(w, verse)
 		log.Println("Handler completed for request.")
 	}
