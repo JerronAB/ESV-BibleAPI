@@ -1,0 +1,24 @@
+services:
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    depends_on: 
+      - 'kyir-server'
+    command: 
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TOKEN}
+    restart: unless-stopped
+
+  ESV-server:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: ESV-server
+    #ports:
+    #  - '8888:8888'
+    #volumes:
+    #  - ./tmp:/app/tmp
+    restart: unless-stopped
