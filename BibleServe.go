@@ -22,9 +22,14 @@ type BibleVerse struct {
 }
 
 func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) (string, error) { //intelligently parse our string input and call loadVersebyBook accordingly
-	//lookup verse from database
-	//strings.Replace()
-	fmt.Println("Verse string received: ", verse_specification)
+	//look up verse string directly
+	//if it's not there, split the verse up to constituent parts and try finding again
+	//if, in that process, verse-to-int conversion fails, we assume it's because we need a range of verses
+	log.Println("Verse string received: ", verse_specification)
+	verse_specification = strings.Replace(verse_specification, "+", " ", 1)         //including this here because it'll come with most requests
+	if verse_result, _ := (*mapOfVerses)[verse_specification]; verse_result != "" { //this saves some compute by only running all the other stuff if this lookup fails
+		return verse_result, nil
+	}
 	book := strings.Split(verse_specification, " ")[0]
 	book = book[0:3]
 	chapter, verse := func(input string) (string, string) {
@@ -32,7 +37,17 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 		return strings.Split(right_side, ":")[0], strings.Split(right_side, ":")[1]
 	}(verse_specification)
 	chapter_i, _ := strconv.Atoi(chapter)
-	verse_i, _ := strconv.Atoi(verse)
+	verse_i, err := strconv.Atoi(verse)
+	if err != nil { //this is actually expected behavior, for when a RANGE of verses is specified (John 3:1-5)
+		first_verse, _ := strconv.Atoi(strings.Split(verse, "-")[0])
+		last_verse, _ := strconv.Atoi(strings.Split(verse, "-")[1])
+		composite_verse := ""
+		for i := first_verse; i <= last_verse; i++ {
+			v, _ := loadVersebyBook(book, uint8(chapter_i), uint8(i), mapOfVerses)
+			composite_verse += v
+		}
+		return composite_verse, nil
+	}
 	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
 }
 
@@ -117,7 +132,9 @@ func handler(mapOfVerses *map[string]string) http.HandlerFunc {
 			http.Error(w, "Verse not found", http.StatusNotFound)
 			return
 		}
-		log.Printf("Total execution time for this lookup: %d us\n", time.Since(start_time).Microseconds())
+		elapsed := time.Since(start_time).Nanoseconds()
+		log.Println(verse)
+		log.Printf("Total execution time for this lookup: %d ns\n", elapsed)
 		fmt.Fprintf(w, verse)
 		log.Println("Handler completed for request.")
 	}
@@ -127,8 +144,8 @@ func main() {
 	//GET https.../api/John 3:16 should get the verse
 	//just going to https://....com/ should get a basic HTML page describing the API
 	mapOfVerses := scanBibleFromTxtFile("ESVBible.txt")
-	v, _ := loadVersebyStr("John 3:16", &mapOfVerses)
-	fmt.Println("John 3:16 is: ", v)
+	//v, _ := loadVersebyStr("John 3:16", &mapOfVerses)
+	//fmt.Println("John 3:16 is: ", v)
 
 	http.HandleFunc("/api/", handler(&mapOfVerses)) //handler here is a FUNCTION which'll be used
 	log.Println("Starting server on :80")
