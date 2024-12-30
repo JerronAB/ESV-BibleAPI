@@ -22,16 +22,18 @@ type BibleVerse struct {
 }
 
 func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) (string, error) { //intelligently parse our string input and call loadVersebyBook accordingly
-	//look up verse string directly
-	//if it's not there, split the verse up to constituent parts and try finding again
+	//look up verse string directly, first truncating the book name and second replacing "+" with " "
+	//if it's not there, split the verse up to constituent parts and try finding again (with more robust operations)
 	//if, in that process, verse-to-int conversion fails, we assume it's because we need a range of verses
 	log.Println("Verse string received: ", verse_specification)
-	verse_specification = strings.Replace(verse_specification, "+", " ", 1)         //including this here because it'll come with most requests
-	if verse_result, _ := (*mapOfVerses)[verse_specification]; verse_result != "" { //this saves some compute by only running all the other stuff if this lookup fails
+	verse_specification = strings.Replace(verse_specification, "+", " ", 1) //including this here because it'll come with most requests
+	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
+	if verse_result, _ := (*mapOfVerses)[verse_w_book_truncd]; verse_result != "" { //this saves some compute by only running all the other stuff if this lookup fails
 		return verse_result, nil
 	}
-	book := strings.Split(verse_specification, " ")[0]
-	book = book[0:3]
+	//we hit this code if the basic string lookup has failed
+	log.Println("Initial string lookup failed for: ", verse_w_book_truncd)
+	book := strings.Split(verse_w_book_truncd, " ")[0]
 	chapter, verse := func(input string) (string, string) {
 		right_side := strings.Split(input, " ")[1]
 		return strings.Split(right_side, ":")[0], strings.Split(right_side, ":")[1]
@@ -44,7 +46,7 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 		composite_verse := ""
 		for i := first_verse; i <= last_verse; i++ {
 			v, _ := loadVersebyBook(book, uint8(chapter_i), uint8(i), mapOfVerses)
-			composite_verse += v
+			composite_verse += v + " "
 		}
 		return composite_verse, nil
 	}
