@@ -3,7 +3,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-tunnel
     depends_on: 
-      - 'kyir-server'
+      - 'esv-server'
     command: 
       - tunnel
       - --no-autoupdate
@@ -12,11 +12,11 @@ services:
       - ${CLOUDFLARE_TOKEN}
     restart: unless-stopped
 
-  ESV-server:
+  esv-server:
     build:
       context: ./
       dockerfile: Dockerfile
-    container_name: ESV-server
+    container_name: esv-server
     #ports:
     #  - '8888:8888'
     #volumes:

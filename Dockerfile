@@ -5,7 +5,7 @@ FROM golang:1.20 AS go_exec_builder
 WORKDIR /app
 
 # Copy the Go script into the container
-COPY server.go .
+COPY BibleServe.go .
 
 # Build the Go script
 RUN go build -o BibleServe BibleServe.go
@@ -20,7 +20,7 @@ RUN apk add --no-cache libc6-compat
 COPY --from=go_exec_builder /app/BibleServe /app/BibleServe
 
 # Copy the text file
-COPY "ESV Bible 2001.txt" /app/ESV Bible 2001.txt
+COPY ESVBible.txt /app/ESVBible.txt
 
 # Set the working directory
 WORKDIR /app

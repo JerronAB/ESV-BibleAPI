@@ -54,7 +54,7 @@ func createMapOfVerses(bible_slice *[]BibleVerse) map[string]string { //this is 
 func scanBibleFromTxtFile(file_name string) map[string]string { //this is currently big, fat and unabstracted
 	var bible []BibleVerse
 	//for now this is done in memory, eventually it'll be a db
-	bibleTxtFile, err := os.Open("ESV Bible 2001.txt")
+	bibleTxtFile, err := os.Open(file_name)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func handler(mapOfVerses *map[string]string) http.HandlerFunc {
 func main() {
 	//GET https.../api/John 3:16 should get the verse
 	//just going to https://....com/ should get a basic HTML page describing the API
-	mapOfVerses := scanBibleFromTxtFile("ESV Bible 2001.txt")
+	mapOfVerses := scanBibleFromTxtFile("ESVBible.txt")
 	v, _ := loadVersebyStr("John 3:16", &mapOfVerses)
 	fmt.Println("John 3:16 is: ", v)
 
