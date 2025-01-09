@@ -1,7 +1,7 @@
 services:
   cloudflare-tunnel:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflare-tunnel
+    container_name: esv-cloudflare-tunnel
     depends_on: 
       - 'esv-server'
     command: 
