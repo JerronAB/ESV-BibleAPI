@@ -28,7 +28,7 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 	log.Println("Verse string received: ", verse_specification)
 	verse_specification = strings.Replace(verse_specification, "+", " ", 1) //including this here because it'll come with most requests
 	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
-	if verse_result, _ := (*mapOfVerses)[verse_w_book_truncd]; verse_result != "" { //this saves some compute by only running all the other stuff if this lookup fails
+	if verse_result := (*mapOfVerses)[verse_w_book_truncd]; verse_result != "" { //this saves some compute by only running all the other stuff if this lookup fails
 		return verse_result, nil
 	}
 	//we hit this code if the basic string lookup has failed
@@ -40,7 +40,7 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 	}(verse_specification)
 	chapter_i, _ := strconv.Atoi(chapter)
 	verse_i, err := strconv.Atoi(verse)
-	if err != nil { //this is actually expected behavior, for when a RANGE of verses is specified (John 3:1-5)
+	if err != nil { //this is actually expected behavior, for when a RANGE of verses is specified (i.e. John 3:1-5)
 		first_verse, _ := strconv.Atoi(strings.Split(verse, "-")[0])
 		last_verse, _ := strconv.Atoi(strings.Split(verse, "-")[1])
 		composite_verse := ""
@@ -53,7 +53,8 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
 }
 
-func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses *map[string]string) (string, error) { //for now this accesses our ballooned struct list in memory (inefficiently). This will EVENTUALLY access a database with o(1) time complexity
+// this function only exists to do more complex error handling in the future. For now it's virtually pointless, but will not remain that way
+func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses *map[string]string) (string, error) {
 	access_string := fmt.Sprint(book, " ", chapter, ":", VerseNumber)
 	//fmt.Println("Accessing map by access_string: ", access_string)
 	return (*mapOfVerses)[access_string], nil
