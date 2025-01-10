@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	searchInstances = 10
+	searchInstances = 50
 )
 
 type BibleVerse struct {
@@ -34,10 +34,12 @@ func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (
 		err := fmt.Errorf("No colon found, so this isn't a verse.")
 		return "", err
 	}
+
 	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
 	if verse_result := mapOfVerses[verse_w_book_truncd]; verse_result != "" {
 		return verse_result, nil
 	}
+
 	log.Println("Initial string lookup failed for: ", verse_w_book_truncd)
 	book := strings.Split(verse_w_book_truncd, " ")[0]
 	chapter, verse := func(input string) (string, string) {
@@ -56,6 +58,7 @@ func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (
 		}
 		return composite_verse, nil
 	}
+
 	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
 }
 
@@ -253,7 +256,7 @@ func handler(requests chan VerseRequest) http.HandlerFunc {
 		requests <- VerseRequest{RequestString: RequestString, Response: responseChan}
 		verse := <-responseChan
 		elapsed := time.Since(start_time).Milliseconds()
-		log.Println(verse)
+		//log.Println(verse)
 		log.Printf("Total execution time for this lookup: %d ms\n", elapsed)
 		fmt.Fprintf(w, verse)
 		log.Println("Handler completed for request.")
