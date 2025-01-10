@@ -1,8 +1,5 @@
-#this test batters our endpoint with hundreds of bible verses in various configurations
-#!/bin/bash
-
 # List of verses
-verses=(
+$verses = @(
     "1John 4:7-12"
     "Lamentations 3:22-23"
     "2Corinthians 4:17"
@@ -30,16 +27,13 @@ verses=(
     "1Peter 1:6"
     "1John 4:13-17"
     "1Corinthians 16:13"
-    "love"
 )
 
-for verse in "${verses[@]}"
-do
+foreach ($verse in $verses) {
     # Replace spaces with + for URL encoding
-    encoded_verse=$(echo $verse | sed 's/ /+/g')
-    #url="https://esv.obky-gas.com/api/${encoded_verse}"
-    url="http://localhost/api/${encoded_verse}"
-    echo "Fetching data for verse: $encoded_verse"
-    curl -X GET "$url"
-    echo -e "\n"
-done
+    $encoded_verse = $verse -replace ' ', '+'
+    $url = "http://localhost/api/$encoded_verse"
+    Write-Output "Fetching data for verse: $encoded_verse"
+    Invoke-RestMethod -Method Get -Uri $url
+    Write-Output "`n"
+}

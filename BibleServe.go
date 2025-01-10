@@ -1,5 +1,3 @@
-// What's left? For learning, include concurrent access to DB
-// Spawn off a goroutine to handle web requests and respond accordingly
 package main
 
 import (
@@ -14,6 +12,10 @@ import (
 	"unicode"
 )
 
+const (
+	searchInstances = 10
+)
+
 type BibleVerse struct {
 	Book        string
 	Chapter     uint8
@@ -21,17 +23,18 @@ type BibleVerse struct {
 	VerseStr    string
 }
 
-func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) (string, error) { //intelligently parse our string input and call loadVersebyBook accordingly
-	//look up verse string directly, first truncating the book name and second replacing "+" with " "
-	//if it's not there, split the verse up to constituent parts and try finding again (with more robust operations)
-	//if, in that process, verse-to-int conversion fails, we assume it's because we need a range of verses
+type VerseRequest struct {
+	VerseSpec string
+	Response  chan string
+}
+
+func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (string, error) {
 	log.Println("Verse string received: ", verse_specification)
-	verse_specification = strings.Replace(verse_specification, "+", " ", 1) //including this here because it'll come with most requests
+	verse_specification = strings.Replace(verse_specification, "+", " ", 1)
 	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
-	if verse_result := (*mapOfVerses)[verse_w_book_truncd]; verse_result != "" { //this saves some compute by only running all the other stuff if this lookup fails
+	if verse_result := mapOfVerses[verse_w_book_truncd]; verse_result != "" {
 		return verse_result, nil
 	}
-	//we hit this code if the basic string lookup has failed
 	log.Println("Initial string lookup failed for: ", verse_w_book_truncd)
 	book := strings.Split(verse_w_book_truncd, " ")[0]
 	chapter, verse := func(input string) (string, string) {
@@ -40,7 +43,7 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 	}(verse_specification)
 	chapter_i, _ := strconv.Atoi(chapter)
 	verse_i, err := strconv.Atoi(verse)
-	if err != nil { //this is actually expected behavior, for when a RANGE of verses is specified (i.e. John 3:1-5)
+	if err != nil {
 		first_verse, _ := strconv.Atoi(strings.Split(verse, "-")[0])
 		last_verse, _ := strconv.Atoi(strings.Split(verse, "-")[1])
 		composite_verse := ""
@@ -53,42 +56,36 @@ func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) 
 	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
 }
 
-// this function only exists to do more complex error handling in the future. For now it's virtually pointless, but will not remain that way
-func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses *map[string]string) (string, error) {
+func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses map[string]string) (string, error) {
 	access_string := fmt.Sprint(book, " ", chapter, ":", VerseNumber)
-	//fmt.Println("Accessing map by access_string: ", access_string)
-	return (*mapOfVerses)[access_string], nil
+	return mapOfVerses[access_string], nil
 }
 
-func createMapOfVerses(bible_slice *[]BibleVerse) map[string]string { //this is our access method for now, even though it balloons memory even further. It DOES make search must faster.
+func createMapOfVerses(bible_slice *[]BibleVerse) map[string]string {
 	mapOfVerses := make(map[string]string)
 	for _, verse := range *bible_slice {
 		access_string := fmt.Sprint(verse.Book, " ", verse.Chapter, ":", verse.VerseNumber)
 		mapOfVerses[access_string] = verse.VerseStr
 	}
-	log.Println("Verse map has been processed. ")
+	log.Println("Verse map has been processed.")
 	return mapOfVerses
 }
 
-func scanBibleFromTxtFile(file_name string) map[string]string { //this is currently big, fat and unabstracted
+func scanBibleFromTxtFile(file_name string) map[string]string {
 	var bible []BibleVerse
-	//for now this is done in memory, eventually it'll be a db
 	bibleTxtFile, err := os.Open(file_name)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer bibleTxtFile.Close()
 
-	scanner := bufio.NewScanner(bibleTxtFile) //using bufio.Scanner because it takes data in auto-sized chunks
-	for scanner.Scan() {                      //runtime largely doesn't matter on this, so this is somewhat inefficient
-		//fmt.Println(scanner.Text())
+	scanner := bufio.NewScanner(bibleTxtFile)
+	for scanner.Scan() {
 		colonIndex := strings.Index(scanner.Text(), ":")
-		switch { //just including a switch in case I want to expand this logic in the future
-		case colonIndex < 8 && colonIndex != -1 && unicode.IsNumber(rune(scanner.Text()[colonIndex-1])) && strings.Count(scanner.Text(), " ") > 1: //this is a new verse; it also only works because of short-circuiting (look up)
+		switch {
+		case colonIndex < 8 && colonIndex != -1 && unicode.IsNumber(rune(scanner.Text()[colonIndex-1])) && strings.Count(scanner.Text(), " ") > 1:
 			bible = append(bible,
 				func(line string) BibleVerse {
-					//parse line
-					//return BibleVerse
 					book_chp_verse_txt := strings.SplitN(line, ":", 2)
 					book_chp := book_chp_verse_txt[0]
 					verse_txt := book_chp_verse_txt[1]
@@ -104,7 +101,6 @@ func scanBibleFromTxtFile(file_name string) map[string]string { //this is curren
 					}
 					return BibleVerse{Book: book_chptr[0], Chapter: uint8(chptr), VerseNumber: uint8(verse), VerseStr: verse_verseLine[1]}
 				}(scanner.Text()))
-			//fmt.Println("Verses added: ", len(bible))
 		default:
 			lastVerse := bible[len(bible)-1]
 			lastVerse.VerseStr += " " + scanner.Text()
@@ -115,10 +111,27 @@ func scanBibleFromTxtFile(file_name string) map[string]string { //this is curren
 	return createMapOfVerses(&bible)
 }
 
-// This is a "wrapper" around the handler function which secretly just calls the proper handler function
-// Except doing it this way allows for mapOfVerses to be accessed by passing in the reference
-// This prevents global variable shenanigens
-func handler(mapOfVerses *map[string]string) http.HandlerFunc {
+func searchBibleForStr(searchString string, map_of_verses map[string]string) string {
+	stringResponse := make(chan string)
+	for i := 0; i < searchInstances; i++ {
+		go func() {
+
+		}()
+	}
+}
+
+func verseHandler(mapOfVerses map[string]string, requests chan VerseRequest) {
+	for req := range requests {
+		verse, err := loadVersebyStr(req.VerseSpec, mapOfVerses)
+		if err != nil {
+			req.Response <- searchBibleForStr(req.VerseSpec, mapOfVerses)
+		} else {
+			req.Response <- verse
+		}
+	}
+}
+
+func handler(requests chan VerseRequest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received a new request")
 
@@ -126,16 +139,11 @@ func handler(mapOfVerses *map[string]string) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Methods", "GET")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-		// Extract the verse specification from the URL path
 		verseSpec := strings.TrimPrefix(r.URL.Path, "/api/")
-		//log.Println("Received GET Request: ", body)
 		start_time := time.Now()
-		verse, err := loadVersebyStr(verseSpec, mapOfVerses)
-		if err != nil {
-			log.Println("Error loading verse:", err)
-			http.Error(w, "Verse not found", http.StatusNotFound)
-			return
-		}
+		responseChan := make(chan string)
+		requests <- VerseRequest{VerseSpec: verseSpec, Response: responseChan}
+		verse := <-responseChan
 		elapsed := time.Since(start_time).Milliseconds()
 		log.Println(verse)
 		log.Printf("Total execution time for this lookup: %d ms\n", elapsed)
@@ -145,13 +153,11 @@ func handler(mapOfVerses *map[string]string) http.HandlerFunc {
 }
 
 func main() {
-	//GET https.../api/John 3:16 should get the verse
-	//just going to https://....com/ should get a basic HTML page describing the API
 	mapOfVerses := scanBibleFromTxtFile("ESVBible.txt")
-	//v, _ := loadVersebyStr("John 3:16", &mapOfVerses)
-	//fmt.Println("John 3:16 is: ", v)
+	requests := make(chan VerseRequest)
+	go verseHandler(mapOfVerses, requests)
 
-	http.HandleFunc("/api/", handler(&mapOfVerses)) //handler here is a FUNCTION which'll be used
+	http.HandleFunc("/api/", handler(requests))
 	log.Println("Starting server on :80")
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
