@@ -204,7 +204,7 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 			for _, key := range keys[start:end] {
 				value := map_of_verses[key]
 				if strings.Contains(value, strings.ReplaceAll(searchString, "+", " ")) {
-					stringResponse <- reverse_book_lookup[key[0:3]] + key[3:] + " " + value
+					stringResponse <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
 				}
 			}
 			completed <- true
