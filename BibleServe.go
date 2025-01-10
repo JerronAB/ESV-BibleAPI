@@ -115,6 +115,74 @@ func scanBibleFromTxtFile(file_name string) map[string]string {
 }
 
 func searchBibleForStr(searchString string, map_of_verses map[string]string) string {
+	reverse_book_lookup := map[string]string{
+		"Gen": "Genesis",
+		"Exo": "Exodus",
+		"Lev": "Leviticus",
+		"Num": "Numbers",
+		"Deu": "Deuteronomy",
+		"Jos": "Joshua",
+		//"Jud": "Judges",
+		"Rut": "Ruth",
+		"1Sa": "1 Samuel",
+		"2Sa": "2 Samuel",
+		"1Ki": "1 Kings",
+		"2Ki": "2 Kings",
+		"1Ch": "1 Chronicles",
+		"2Ch": "2 Chronicles",
+		"Ezr": "Ezra",
+		"Neh": "Nehemiah",
+		"Est": "Esther",
+		"Job": "Job",
+		"Psa": "Psalms",
+		"Pro": "Proverbs",
+		"Ecc": "Ecclesiastes",
+		"Son": "Song of Solomon",
+		"Isa": "Isaiah",
+		"Jer": "Jeremiah",
+		"Lam": "Lamentations",
+		"Eze": "Ezekiel",
+		"Dan": "Daniel",
+		"Hos": "Hosea",
+		"Joe": "Joel",
+		"Amo": "Amos",
+		"Oba": "Obadiah",
+		"Jon": "Jonah",
+		"Mic": "Micah",
+		"Nah": "Nahum",
+		"Hab": "Habakkuk",
+		"Zep": "Zephaniah",
+		"Hag": "Haggai",
+		"Zec": "Zechariah",
+		"Mal": "Malachi",
+		"Mat": "Matthew",
+		"Mar": "Mark",
+		"Luk": "Luke",
+		"Joh": "John",
+		"Act": "Acts",
+		"Rom": "Romans",
+		"1Co": "1 Corinthians",
+		"2Co": "2 Corinthians",
+		"Gal": "Galatians",
+		"Eph": "Ephesians",
+		//"Phi": "Philippians",
+		"Col": "Colossians",
+		"1Th": "1 Thessalonians",
+		"2Th": "2 Thessalonians",
+		"1Ti": "1 Timothy",
+		"2Ti": "2 Timothy",
+		"Tit": "Titus",
+		"Phi": "Philemon",
+		"Heb": "Hebrews",
+		"Jam": "James",
+		"1Pe": "1 Peter",
+		"2Pe": "2 Peter",
+		"1Jo": "1 John",
+		"2Jo": "2 John",
+		"3Jo": "3 John",
+		"Jud": "Jude",
+		"Rev": "Revelation",
+	}
 	stringResponse := make(chan string)
 	completed := make(chan bool)
 
@@ -135,8 +203,8 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 			}
 			for _, key := range keys[start:end] {
 				value := map_of_verses[key]
-				if strings.Contains(value, searchString) {
-					stringResponse <- key + " " + value
+				if strings.Contains(value, strings.ReplaceAll(searchString, "+", " ")) {
+					stringResponse <- reverse_book_lookup[key[0:3]] + key[3:] + " " + value
 				}
 			}
 			completed <- true
