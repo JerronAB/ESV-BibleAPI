@@ -24,13 +24,16 @@ type BibleVerse struct {
 }
 
 type VerseRequest struct {
-	VerseSpec string
-	Response  chan string
+	RequestString string
+	Response      chan string
 }
 
 func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (string, error) {
-	log.Println("Verse string received: ", verse_specification)
 	verse_specification = strings.Replace(verse_specification, "+", " ", 1)
+	if !strings.Contains(verse_specification, ":") {
+		err := fmt.Errorf("No colon found, so this isn't a verse.")
+		return "", err
+	}
 	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
 	if verse_result := mapOfVerses[verse_w_book_truncd]; verse_result != "" {
 		return verse_result, nil
@@ -113,18 +116,55 @@ func scanBibleFromTxtFile(file_name string) map[string]string {
 
 func searchBibleForStr(searchString string, map_of_verses map[string]string) string {
 	stringResponse := make(chan string)
-	for i := 0; i < searchInstances; i++ {
-		go func() {
+	completed := make(chan bool)
 
-		}()
+	// Convert map to slice of keys for easier chunking
+	keys := make([]string, 0, len(map_of_verses))
+	for key := range map_of_verses {
+		keys = append(keys, key)
 	}
+
+	chunkSize := (len(keys) + searchInstances - 1) / searchInstances
+
+	// Launch multiple goroutines
+	for i := 0; i < searchInstances; i++ {
+		go func(start int) {
+			end := start + chunkSize
+			if end > len(keys) {
+				end = len(keys)
+			}
+			for _, key := range keys[start:end] {
+				value := map_of_verses[key]
+				if strings.Contains(value, searchString) {
+					stringResponse <- key + " " + value
+				}
+			}
+			completed <- true
+		}(i * chunkSize)
+	}
+
+	// Collect results
+	var result string
+	go func() {
+		for i := 0; i < searchInstances; i++ {
+			<-completed
+		}
+		close(stringResponse)
+	}()
+
+	for res := range stringResponse { //in Go, this is a way of "waiting" for a new item in the channel
+		result += "\n\n" + res
+	}
+
+	return result
 }
 
 func verseHandler(mapOfVerses map[string]string, requests chan VerseRequest) {
 	for req := range requests {
-		verse, err := loadVersebyStr(req.VerseSpec, mapOfVerses)
+		log.Println("String received: ", req.RequestString)
+		verse, err := loadVersebyStr(req.RequestString, mapOfVerses)
 		if err != nil {
-			req.Response <- searchBibleForStr(req.VerseSpec, mapOfVerses)
+			req.Response <- searchBibleForStr(req.RequestString, mapOfVerses)
 		} else {
 			req.Response <- verse
 		}
@@ -139,10 +179,10 @@ func handler(requests chan VerseRequest) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Methods", "GET")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-		verseSpec := strings.TrimPrefix(r.URL.Path, "/api/")
+		RequestString := strings.TrimPrefix(r.URL.Path, "/api/")
 		start_time := time.Now()
 		responseChan := make(chan string)
-		requests <- VerseRequest{VerseSpec: verseSpec, Response: responseChan}
+		requests <- VerseRequest{RequestString: RequestString, Response: responseChan}
 		verse := <-responseChan
 		elapsed := time.Since(start_time).Milliseconds()
 		log.Println(verse)

@@ -31,6 +31,7 @@ verses=(
     "1John 4:13-17"
     "1Corinthians 16:13"
     "love"
+    "hardship"
 )
 
 for verse in "${verses[@]}"
