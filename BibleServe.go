@@ -261,9 +261,9 @@ func handler(requests chan VerseRequest) http.HandlerFunc {
 }
 
 func main() {
-	if searchInstances < 3 {
+	if searchInstances < 2 {
 		log.Printf("Default NumCPU value is %d.", searchInstances)
-		searchInstances = 3
+		searchInstances = 2
 	}
 	log.Printf("Using %d search instances for goroutines.", searchInstances)
 	mapOfVerses := scanBibleFromTxtFile("ESVBible.txt")
