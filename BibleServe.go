@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -186,9 +187,8 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 		"Jud": "Jude",
 		"Rev": "Revelation",
 	}
-	stringResponse := make(chan string)
-	completed := make(chan bool)
-
+	stringResponses := make(chan string, 100)
+	var wg sync.WaitGroup
 	// Convert map to slice of keys for easier chunking
 	keys := make([]string, 0, len(map_of_verses))
 	for key := range map_of_verses {
@@ -199,7 +199,9 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 
 	// Launch multiple goroutines
 	for i := 0; i < searchInstances; i++ {
-		go func(start int) {
+		wg.Add(1)
+		go func(start int, wg *sync.WaitGroup) {
+			defer wg.Done()
 			end := start + chunkSize
 			if end > len(keys) {
 				end = len(keys)
@@ -207,23 +209,20 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 			for _, key := range keys[start:end] {
 				value := map_of_verses[key]
 				if strings.Contains(value, strings.ReplaceAll(searchString, "+", " ")) {
-					stringResponse <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
+					stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
 				}
 			}
-			completed <- true
-		}(i * chunkSize)
+		}(i*chunkSize, &wg) //pass in REFERENCE to our WaitGroup
 	}
 
 	// Collect results
 	var result string
 	go func() {
-		for i := 0; i < searchInstances; i++ {
-			<-completed
-		}
-		close(stringResponse)
+		wg.Wait()
+		close(stringResponses)
 	}()
 
-	for res := range stringResponse { //in Go, this is a way of "waiting" for a new item in the channel
+	for res := range stringResponses { //in Go, this is a way of "waiting" for a new item in the channel
 		result += "\n\n" + res
 	}
 
