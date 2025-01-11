@@ -255,7 +255,7 @@ func handler(requests chan VerseRequest) http.HandlerFunc {
 		verse := <-responseChan
 		elapsed := time.Since(start_time).Milliseconds()
 		//log.Println(verse)
-		log.Printf("Total execution time for this \"%s\" lookup: %d ms - Completed.\n", RequestString, elapsed)
+		log.Printf("Total execution time for \"%s\" lookup: %d ms - Completed.\n", RequestString, elapsed)
 		fmt.Fprintf(w, verse)
 	}
 }
