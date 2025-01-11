@@ -35,6 +35,9 @@ func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (
 		return "", err
 	}
 
+	verse_specification = strings.Replace(verse_specification, "Judges", "Jdg", 1)
+	verse_specification = strings.Replace(verse_specification, "Philemon", "Phm", 1)
+	verse_specification = strings.Replace(verse_specification, "Son", "Sol", 1)
 	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
 	if verse_result := mapOfVerses[verse_w_book_truncd]; verse_result != "" {
 		return verse_result, nil

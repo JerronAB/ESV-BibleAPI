@@ -33,6 +33,7 @@ $verses = @(
     "the"
     "Midian"
     "beloved's"
+    "Judges 1:1"
 )
 
 foreach ($verse in $verses) {
