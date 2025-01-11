@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	searchInstances = 50
+	searchInstances = 10
 )
 
 type BibleVerse struct {
@@ -188,31 +188,28 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 		"Rev": "Revelation",
 	}
 	stringResponses := make(chan string, 100)
+	verseSearchChan := make(chan string, len(map_of_verses))
 	var wg sync.WaitGroup
-	// Convert map to slice of keys for easier chunking
-	keys := make([]string, 0, len(map_of_verses))
-	for key := range map_of_verses {
-		keys = append(keys, key)
-	}
-
-	chunkSize := (len(keys) + searchInstances - 1) / searchInstances
+	// This function "populates" verseSearch Channel with verses to search
+	go func() {
+		for key := range map_of_verses {
+			verseSearchChan <- key
+		}
+		close(verseSearchChan)
+	}()
 
 	// Launch multiple goroutines
 	for i := 0; i < searchInstances; i++ {
 		wg.Add(1)
-		go func(start int, wg *sync.WaitGroup) {
+		go func(wg *sync.WaitGroup) {
 			defer wg.Done()
-			end := start + chunkSize
-			if end > len(keys) {
-				end = len(keys)
-			}
-			for _, key := range keys[start:end] {
+			for key := range verseSearchChan {
 				value := map_of_verses[key]
 				if strings.Contains(value, strings.ReplaceAll(searchString, "+", " ")) {
 					stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
 				}
 			}
-		}(i*chunkSize, &wg) //pass in REFERENCE to our WaitGroup
+		}(&wg) //pass in REFERENCE to our WaitGroup
 	}
 
 	// Collect results
