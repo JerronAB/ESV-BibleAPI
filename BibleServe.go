@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,9 +14,7 @@ import (
 	"unicode"
 )
 
-const (
-	searchInstances = 10
-)
+var searchInstances = runtime.NumCPU()
 
 type BibleVerse struct {
 	Book        string
@@ -187,7 +186,7 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 		"Jud": "Jude",
 		"Rev": "Revelation",
 	}
-	stringResponses := make(chan string, 100)
+	stringResponses := make(chan string, 100) //this is a BUFFERED channel; should make things faster
 	verseSearchChan := make(chan string, len(map_of_verses))
 	var wg sync.WaitGroup
 	// This function "populates" verseSearch Channel with verses to search
