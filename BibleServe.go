@@ -31,7 +31,7 @@ type VerseRequest struct {
 func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (string, error) {
 	verse_specification = strings.Replace(verse_specification, "+", " ", 1)
 	if !strings.Contains(verse_specification, ":") {
-		err := fmt.Errorf("No colon found, so this isn't a verse.")
+		err := fmt.Errorf("no colon found, input string isn't a verse")
 		return "", err
 	}
 
@@ -205,9 +205,9 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 			for key := range verseSearchChan {
 				value := map_of_verses[key]
 				if strings.Contains(value, strings.ReplaceAll(searchString, "+", " ")) {
-					key = strings.Replace(key, "Judges", "Jdg", 0)
-					key = strings.Replace(key, "Philemon", "Phm", 0)
-					key = strings.Replace(key, "Son", "Sol", 0)
+					key = strings.Replace(key, "Judges", "Jdg", 1)
+					key = strings.Replace(key, "Philemon", "Phm", 1)
+					key = strings.Replace(key, "Son", "Sol", 1)
 					stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
 				}
 			}
