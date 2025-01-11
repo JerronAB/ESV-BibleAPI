@@ -186,7 +186,7 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 		"Jud": "Jude",
 		"Rev": "Revelation",
 	}
-	stringResponses := make(chan string, 100) //this is a BUFFERED channel; should make things faster
+	stringResponses := make(chan string, 500) //this is a BUFFERED channel; should make things faster
 	verseSearchChan := make(chan string, len(map_of_verses))
 	var wg sync.WaitGroup
 	// This function "populates" verseSearch Channel with verses to search
