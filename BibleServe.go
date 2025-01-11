@@ -140,7 +140,7 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 		"Psa": "Psalms",
 		"Pro": "Proverbs",
 		"Ecc": "Ecclesiastes",
-		"Son": "Song of Solomon",
+		"Sol": "Song of Solomon",
 		"Isa": "Isaiah",
 		"Jer": "Jeremiah",
 		"Lam": "Lamentations",
@@ -205,6 +205,9 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 			for key := range verseSearchChan {
 				value := map_of_verses[key]
 				if strings.Contains(value, strings.ReplaceAll(searchString, "+", " ")) {
+					key = strings.Replace(key, "Judges", "Jdg", 0)
+					key = strings.Replace(key, "Philemon", "Phm", 0)
+					key = strings.Replace(key, "Son", "Sol", 0)
 					stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
 				}
 			}

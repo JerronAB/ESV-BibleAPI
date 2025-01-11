@@ -28,6 +28,11 @@ $verses = @(
     "1John 4:13-17"
     "1Corinthians 16:13"
     "love"
+    "hardship"
+    "Jesus"
+    "the"
+    "Midian"
+    "beloved's"
 )
 
 foreach ($verse in $verses) {
