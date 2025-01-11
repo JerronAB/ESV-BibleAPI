@@ -259,6 +259,10 @@ func handler(requests chan VerseRequest) http.HandlerFunc {
 }
 
 func main() {
+	if searchInstances < 3 {
+		searchInstances = 3
+	}
+	log.Printf("Using %d search instances for goroutines.", searchInstances)
 	mapOfVerses := scanBibleFromTxtFile("ESVBible.txt")
 	requests := make(chan VerseRequest)
 	go verseHandler(mapOfVerses, requests)
