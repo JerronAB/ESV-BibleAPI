@@ -54,12 +54,13 @@ func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (
 	if err != nil {
 		first_verse, _ := strconv.Atoi(strings.Split(verse, "-")[0])
 		last_verse, _ := strconv.Atoi(strings.Split(verse, "-")[1])
-		composite_verse := ""
+		var composite_verse strings.Builder
 		for i := first_verse; i <= last_verse; i++ {
 			v, _ := loadVersebyBook(book, uint8(chapter_i), uint8(i), mapOfVerses)
-			composite_verse += v + " "
+			composite_verse.WriteString(v)
+			composite_verse.WriteByte(' ')
 		}
-		return composite_verse, nil
+		return composite_verse.String(), nil
 	}
 
 	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
@@ -218,17 +219,18 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string) str
 	}
 
 	// Collect results
-	var result string
+	var result strings.Builder
 	go func() {
 		wg.Wait()
 		close(stringResponses)
 	}()
 
 	for res := range stringResponses { //in Go, this is a way of "waiting" for a new item in the channel
-		result += "\n\n" + res
+		result.WriteString("\n\n")
+		result.WriteString(res)
 	}
 
-	return result
+	return result.String()
 }
 
 func verseHandler(mapOfVerses map[string]string, requests chan VerseRequest) {
