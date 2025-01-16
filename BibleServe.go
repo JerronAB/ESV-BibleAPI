@@ -276,6 +276,15 @@ func main() {
 	go verseHandler(mapOfVerses, requests)
 
 	http.HandleFunc("/api/", handler(requests))
+
+	content, err := ioutil.ReadFile("BibleSearch.html")
+	if err != nil {
+		return
+	}
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, content)
+	})
+
 	log.Println("Starting server on :80")
 	if err := http.ListenAndServe(":80", nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)

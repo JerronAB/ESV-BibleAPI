@@ -1,0 +1,137 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>Search the ESV Bible</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link
+        href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/3.2.0/tailwind.min.css"
+        rel="stylesheet"
+    />
+    <style>
+    body {
+        background-color: #2e2e2e; /* Soft dark gray */
+        color: #ffffff; /* White text */
+        font-family: Arial, Helvetica, sans-serif; /* Gentle font */
+        margin: 0;
+        padding: 0;
+    }
+    </style>
+	<script>
+		i = 0;
+		function searchTerm() {
+			i = 0;
+			const input = document.getElementById('searchInput').value.replace(" ","+");
+			const capitalLettersPresent = /[A-Z]/;
+			//this is my lazy way of searching for both caps and non-caps version of what was typed
+			  if (capitalLettersPresent.test(input)) {
+				var verseContainer = document.querySelector('.items');
+				verseContainer.innerHTML = '';
+				searchBible(input.toLowerCase(), deleteOld=false);
+				searchBible(input, deleteOld=false);
+			} else {
+				searchBible(input)
+			}
+		}
+		async function searchBible(input, deleteOld=true) {
+			const url = `https://esv.obky-gas.com/api/${input}`;
+			try {
+				const response = await fetch(url);
+				if (!response.ok) {
+					throw new Error('Network response was not ok');
+				}
+				const data = await response.text();
+				displayVerses(data, deleteOld);
+			} catch (error) {
+				console.error('There was a problem with the fetch operation:', error);
+			}
+		}
+
+		function displayVerses(data, deleteOld=true) {
+			const itemsContainer = document.querySelector('.items');
+			if (deleteOld) {itemsContainer.innerHTML = '';} // Clear previous results
+
+			const verses = data.split('\n\n'); // Assuming each verse is on a new line
+			verses.forEach(verse => {
+				if (verse !== '') {
+					const [reference, verseText] = verse.split(' - ');
+					const item = document.createElement('div');
+					item.className = 'inner';
+					verse_id=`return_verse_${i++}`;
+					item.id=verse_id;
+					item.setAttribute("onclick", `expandVerse('${verse_id}')`);
+
+					const heading = document.createElement('h3');
+					heading.textContent = reference;
+
+					const paragraph = document.createElement('p');
+					paragraph.textContent = verseText;
+
+					item.appendChild(heading);
+					item.appendChild(paragraph);
+					itemsContainer.appendChild(item);
+				}
+			});
+		}
+		async function expandVerse(verse_id) {
+			console.log(`Expanding ${verse_id}`)
+			const verseDiv = document.getElementById(verse_id)
+			const h3 = verseDiv.children[0] //this should return our verse name
+			verse_name = h3.innerText
+			// our Go backend is super-optimized, at the cost of not being super robust
+			// for that reason, we've got to "re-parse" our verse title into something usable by the backend
+			// that just means that 1 John 3:16 should turn into 1Jo 3:16
+			// UNLESS the book is judges or Philippians, in which case we leave the whole name
+			// to prevent ambiguity with Jude and Philemon
+			if (verse_name.indexOf("Judges") !== -1 || verse_name.indexOf("Philippians") !== -1) {
+				book_name   = verse_name.substring(0,verse_name.indexOf(" "))
+			} else {
+				book_name   = verse_name.replaceAll(" ","").substring(0,3)
+			}
+			chapter_num = verse_name.substring(verse_name.lastIndexOf(" ") + 1,verse_name.indexOf(":"))
+			verse_num   = verse_name.substring(verse_name.indexOf(":") + 1)
+			console.log("verse_num:", verse_num);
+			if (verse_num.indexOf("-") !== -1) {
+				starting_verse = parseInt(verse_num.substring(0,verse_num.indexOf("-"))) - 1
+				ending_verse = parseInt(verse_num.substring(verse_num.indexOf("-") + 1)) + 1
+				verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+			} else {
+				starting_verse = parseInt(verse_num) - 1
+				ending_verse = parseInt(verse_num) + 1
+				verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+			}
+			console.log("starting_verse:", starting_verse);
+			console.log("ending_verse:", ending_verse);
+			console.log("verse_request_string:", verse_request_string);
+			
+			const url = `https://esv.obky-gas.com/api/${verse_request_string}`;
+			try {
+				const response = await fetch(url);
+				if (!response.ok) {
+					throw new Error('Network response was not ok');
+				}
+				const data = await response.text();
+				var p = verseDiv.children[1];
+				p.innerText = data;
+				h3.innerText = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse
+			} catch (error) {
+				console.error('There was a problem with the fetch operation:', error);
+			}
+		}
+</script>
+</head>
+	</head>
+	<body class="is-preload">
+        <div id="wrapper" class="divided">
+        <section class="wrapper style1 align-center color7 invert" id="verses">
+          <div class="inner">
+            <h2>ESV Bible Search</h2>
+			<div>
+				<input type="text" id="searchInput" placeholder="Search for a term or word...">
+				<button type="button" onclick="searchTerm()">Search</button>
+			</div>
+          </div>
+        </section>
+    </div>
+	</body>
+</html>
