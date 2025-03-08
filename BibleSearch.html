@@ -18,181 +18,112 @@
     }
     </style>
 	<script>
-		i = 0;
-		function searchTerm() {
-    const input = document.getElementById('searchInput').value;
-    const searchMode = "plain_search"; // Default search mode, can be updated based on UI selection
-    const searchTerms = [input]; // For plain search, just the input value
-    const caseSensitive = false; // Default case sensitivity, can be updated by UI checkbox
-    const trimSpaces = true; // Default trim spaces, can be updated by UI checkbox
-    const radius = 5; // Default radius for assoc_search, can be updated by UI input if assoc_search is selected
-
-    const searchRequest = {
-        search_mode: searchMode,
-        search_terms: searchTerms,
-        general_options: {
-            case_sensitive: caseSensitive,
-            trim_spaces: trimSpaces
-        },
-        mode_options: {
-            plain_search_options: {
-                case_sensitive: caseSensitive // Redundant here as general_options.case_sensitive applies, but included for clarity
-            },
-            assoc_options: {
-                radius: radius // Only relevant for "assoc_search" mode
-            }
-        }
-    };
-
-    searchBible(searchRequest);
-}
-
-async function searchBible(searchRequest) {
-    const url = `/api/search`; // Define a consistent search endpoint on your backend
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST', // Use POST method to send JSON in body
-            headers: {
-                'Content-Type': 'application/json' // Set Content-Type to JSON
-            },
-            body: JSON.stringify(searchRequest) // Convert Javascript object to JSON string
-        });
-
-        if (!response.ok) {
-            throw new Error(`Network response was not ok, status: ${response.status}`);
-        }
-
-        const jsonData = await response.json(); // Expecting JSON response from backend
-        displayVerses(jsonData); // Pass JSON data directly to displayVerses
-    } catch (error) {
-        console.error('There was a problem with the fetch operation:', error);
-    }
-}
-
-function displayVerses(jsonData) { // Expecting JSON array of Verse objects
-    const itemsContainer = document.querySelector('.items');
-    itemsContainer.innerHTML = ''; // Clear previous results
-    i = 0; // Reset verse counter
-
-    if (!jsonData || !Array.isArray(jsonData)) { // Basic check if jsonData is valid array
-        console.error('Invalid JSON response format:', jsonData);
-        itemsContainer.textContent = "Error: Could not display verses due to invalid response.";
-        return;
-    }
-
-    jsonData.forEach(verse => {
-        if (verse && verse.verse_name && verse.verse_content) { // Check if verse object and its properties are valid
-            const item = document.createElement('div');
-            item.className = 'inner';
-            verse_id=`return_verse_${i++}`;
-            item.id=verse_id;
-            item.setAttribute("onclick", `expandVerse('${verse_id}')`);
-
-            const heading = document.createElement('h3');
-            heading.textContent = verse.verse_name; // Use verse.verse_name from JSON
-
-            const paragraph = document.createElement('p');
-            paragraph.textContent = verse.verse_content; // Use verse.verse_content from JSON
-
-            item.appendChild(heading);
-            item.appendChild(paragraph);
-            itemsContainer.appendChild(item);
+    i = 0;
+    function searchTerm() {
+        i = 0;
+        const input = document.getElementById('searchInput').value.replaceAll(" ","+");
+        const capitalLettersPresent = /[A-Z]/;
+        //this is my lazy way of searching for both caps and non-caps version of what was typed
+        if (capitalLettersPresent.test(input)) {
+            var verseContainer = document.querySelector('.items');
+            verseContainer.innerHTML = '';
+            searchBible(input.toLowerCase(), deleteOld=false);
+            searchBible(input, deleteOld=false);
         } else {
-            console.warn("Skipping invalid verse data:", verse); // Warn about invalid verse data
+            searchBible(input);
         }
-    });
-}
-async function expandVerse(verse_id) {
-    console.log(`Expanding ${verse_id}`);
-    const verseDiv = document.getElementById(verse_id);
-    const h3 = verseDiv.children[0]; // this should return our verse name
-    verse_name = h3.innerText;
-
-    // Parse verse_name to create search terms for "specified_search"
-    let book_name, chapter_num, verse_num_str;
-    if (verse_name.indexOf("Judges") !== -1 || verse_name.indexOf("Philippians") !== -1) {
-        book_name = verse_name.substring(0, verse_name.indexOf(" ")).trim();
-    } else {
-        book_name = verse_name.replaceAll(" ", "").substring(0, 3).trim();
     }
-    chapter_num = verse_name.substring(verse_name.lastIndexOf(" ") + 1, verse_name.indexOf(":")).trim();
-    verse_num_str = verse_name.substring(verse_name.indexOf(":") + 1).trim();
-
-    let searchTerms = [];
-    if (verse_num_str.indexOf("-") !== -1) {
-        const starting_verse = parseInt(verse_num_str.substring(0, verse_num_str.indexOf("-")).trim());
-        const ending_verse = parseInt(verse_num_str.substring(verse_num_str.indexOf("-") + 1).trim());
-        for (let v = starting_verse; v <= ending_verse; v++) {
-            searchTerms.push(`${book_name} ${chapter_num}:${v}`);
-        }
-    } else {
-        searchTerms.push(`${book_name} ${chapter_num}:${verse_num_str}`);
-    }
-
-    console.log("searchTerms for expand:", searchTerms); // Log the search terms
-
-    const searchRequest = {
-        search_mode: "specified_search", // Use "specified_search" mode for verse lookup
-        search_terms: searchTerms, // Use the parsed verse name as search terms
-        general_options: {
-            case_sensitive: false, // Or get from UI if needed
-            trim_spaces: true // Or get from UI if needed
-        },
-        mode_options: {
-            plain_search_options: { // These options are not really used in specified_search, but included for structure
-                case_sensitive: false
-            },
-            assoc_options: { // Not used in specified_search
-                radius: 5
+    async function searchBible(input, deleteOld=true) {
+        const url = `https://esv.obky-gas.com/api/${input}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
             }
+            const data = await response.text();
+            displayVerses(data, deleteOld);
+        } catch (error) {
+            console.error('There was a problem with the fetch operation:', error);
         }
-    };
+    }
 
-    const url = `/api/search`; // Your backend search endpoint
+    function displayVerses(data, deleteOld=true) {
+        const itemsContainer = document.querySelector('.items');
+        if (deleteOld) {
+            console.log("Deleting existing verses...")
+            itemsContainer.innerHTML = '';
+        } // Clear previous results
+        else {console.log("Not deleting existing verses...")}
 
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(searchRequest)
-        });
+        const verses = data.split('\n\n'); // Assuming each verse is on a new line
+        verses.forEach(verse => {
+            if (verse !== '') {
+                const [reference, verseText] = verse.split(' - ');
+                const item = document.createElement('div');
+                item.className = 'inner';
+                verse_id=`return_verse_${i++}`;
+                item.id=verse_id;
+                item.setAttribute("onclick", `expandVerse('${verse_id}')`);
 
-        if (!response.ok) {
-            throw new Error(`Network response was not ok, status: ${response.status}`);
-        }
+                const heading = document.createElement('h3');
+                heading.textContent = reference;
 
-        const jsonData = await response.json();
+                const paragraph = document.createElement('p');
+                paragraph.textContent = verseText;
 
-        if (!jsonData || !Array.isArray(jsonData) || jsonData.length === 0) {
-            console.error('Invalid or empty JSON response for verse expansion:', jsonData);
-            verseDiv.children[1].innerText = "Error: Could not load verse content."; // Update paragraph with error
-            return;
-        }
-
-        const expandedVerses = jsonData; // Assuming backend returns a list of verses for specified search
-        let expandedText = "";
-        expandedVerses.forEach(verse => {
-            if (verse && verse.verse_content && verse.verse_name) {
-                expandedText += verse.verse_name + " - " + verse.verse_content + "\n\n";
+                item.appendChild(heading);
+                item.appendChild(paragraph);
+                itemsContainer.appendChild(item);
             }
         });
-
-
-        var p = verseDiv.children[1];
-        p.innerText = expandedText.trim(); // Set the expanded text, trim to remove trailing newlines
-
-        // Update heading to reflect potentially expanded verse range (optional - keep original for single verse lookup)
-        // h3.innerText = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse; // Original logic - might need adjustment
-        h3.innerText = verse_name; // Keep original verse name for heading for simplicity in 'expand'
-
-    } catch (error) {
-        console.error('There was a problem with the fetch operation for verse expansion:', error);
-        verseDiv.children[1].innerText = "Error: Failed to load verse content."; // Update paragraph with error message
     }
-}
+    async function expandVerse(verse_id) {
+        console.log(`Expanding ${verse_id}`)
+        const verseDiv = document.getElementById(verse_id)
+        const h3 = verseDiv.children[0] //this should return our verse name
+        verse_name = h3.innerText
+        // our Go backend is super-optimized, at the cost of not being super robust
+        // for that reason, we've got to "re-parse" our verse title into something usable by the backend
+        // that just means that 1 John 3:16 should turn into 1Jo 3:16
+        // UNLESS the book is judges or Philippians, in which case we leave the whole name
+        // to prevent ambiguity 
+        if (verse_name.indexOf("Judges") !== -1 || verse_name.indexOf("Philippians") !== -1) {
+            book_name   = verse_name.substring(0,verse_name.indexOf(" "))
+        } else {
+            book_name   = verse_name.replaceAll(" ","").substring(0,3)
+        }
+        chapter_num = verse_name.substring(verse_name.lastIndexOf(" ") + 1,verse_name.indexOf(":"))
+        verse_num   = verse_name.substring(verse_name.indexOf(":") + 1)
+        console.log("verse_num:", verse_num);
+        if (verse_num.indexOf("-") !== -1) {
+            starting_verse = parseInt(verse_num.substring(0,verse_num.indexOf("-"))) - 1
+            if (starting_verse <= 0) {starting_verse = 1}
+            ending_verse = parseInt(verse_num.substring(verse_num.indexOf("-") + 1)) + 1
+            verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+        } else {
+            starting_verse = parseInt(verse_num) - 1
+            ending_verse = parseInt(verse_num) + 1
+            verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+        }
+        console.log("book_name:", book_name);
+        console.log("starting_verse:", starting_verse);
+        console.log("ending_verse:", ending_verse);
+        console.log("verse_request_string:", verse_request_string);
+        
+        const url = `https://esv.obky-gas.com/api/${verse_request_string}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const data = await response.text();
+            var p = verseDiv.children[1];
+            p.innerText = data;
+            h3.innerText = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse
+        } catch (error) {
+            console.error('There was a problem with the fetch operation:', error);
+        }
+    }
 </script>
 </head>
 	</head>
