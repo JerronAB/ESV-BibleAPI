@@ -117,7 +117,7 @@
         //const website_root = "https://esv.obky-gas.com"
         const website_root = "http://localhost"
         async function sendRequest(input, deleteOld=true, delimiter="\n\n") {
-            const url = `${website_root}/api?${input}`; 
+            const url = `${website_root}/api?${input}`;
             try {
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -182,18 +182,19 @@
                 starting_verse = parseInt(verse_num.substring(0,verse_num.indexOf("-"))) - 1
                 if (starting_verse <= 0) {starting_verse = 1}
                 ending_verse = parseInt(verse_num.substring(verse_num.indexOf("-") + 1)) + 1
-                verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+                verse_request_string = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse
             } else {
                 starting_verse = parseInt(verse_num) - 1
                 ending_verse = parseInt(verse_num) + 1
-                verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+                verse_request_string = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse
             }
+            verse_request_string = encodeURIComponent(verse_request_string)
             console.log("book_name:", book_name);
             console.log("starting_verse:", starting_verse);
             console.log("ending_verse:", ending_verse);
             console.log("verse_request_string:", verse_request_string);
 
-            const url = `https://esv.obky-gas.com/api/${verse_request_string}`;
+            const url = `https://esv.obky-gas.com/api?searchMode=versesearch?searchString=${verse_request_string}`;
             try {
                 const response = await fetch(url);
                 if (!response.ok) {
