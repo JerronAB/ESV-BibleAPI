@@ -2,28 +2,27 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
+	"maps"
 	"net/http"
+	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
+
+var searchInstances = runtime.NumCPU()
 
 type BibleVerse struct {
 	Book        string
 	Chapter     uint8
 	VerseNumber uint8
 	VerseStr    string
-}
-
-type VerseRequest struct {
-	RequestString string
-	Response      chan string
 }
 
 func createMapOfVerses(bible_slice *[]BibleVerse) map[string]string {
@@ -76,51 +75,8 @@ func scanBibleFromTxtFile(file_name string) map[string]string {
 	return createMapOfVerses(&bible)
 }
 
-func loadVersebyStr(verse_specification string, mapOfVerses *map[string]string) ([]Verse, error) {
-	verse_specification = strings.Replace(verse_specification, "+", " ", 1)
-	if !strings.Contains(verse_specification, ":") {
-		err := fmt.Errorf("no colon found, input string isn't a verse")
-		return []Verse{{VerseName: "", VerseContent: ""}}, err
-	}
-
-	verse_specification = strings.Replace(verse_specification, "Judges", "Jdg", 1)
-	verse_specification = strings.Replace(verse_specification, "Philemon", "Phm", 1)
-	verse_specification = strings.Replace(verse_specification, "Son", "Sol", 1)
-	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
-	if verse_result := mapOfVerses[verse_w_book_truncd]; verse_result != "" {
-		return []Verse{verse_result}, nil
-	}
-
-	log.Println("Initial string lookup failed for: ", verse_w_book_truncd)
-	book := strings.Split(verse_w_book_truncd, " ")[0]
-	chapter, verse := func(input string) (string, string) {
-		right_side := strings.Split(input, " ")[1]
-		return strings.Split(right_side, ":")[0], strings.Split(right_side, ":")[1]
-	}(verse_specification)
-	chapter_i, _ := strconv.Atoi(chapter)
-	verse_i, err := strconv.Atoi(verse)
-	if err != nil {
-		first_verse, _ := strconv.Atoi(strings.Split(verse, "-")[0])
-		last_verse, _ := strconv.Atoi(strings.Split(verse, "-")[1])
-		var composite_verse strings.Builder
-		for i := first_verse; i <= last_verse; i++ {
-			v, _ := loadVersebyBook(book, uint8(chapter_i), uint8(i), mapOfVerses)
-			composite_verse.WriteString(v)
-			composite_verse.WriteByte(' ')
-		}
-		return composite_verse.String(), nil
-	}
-
-	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
-}
-
-func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses map[string]string) (string, error) {
-	access_string := fmt.Sprint(book, " ", chapter, ":", VerseNumber)
-	return mapOfVerses[access_string], nil
-}
-
-func searchBibleForStr(searchString string, case_sensitive bool, map_of_verses *map[string]string) []Verse {
-	reverse_book_lookup := map[string]string{ //should this be global?
+func searchBibleForStr(searchString string, map_of_verses map[string]string, delimiter string, caseSensitive bool) string {
+	reverse_book_lookup := map[string]string{
 		"Gen": "Genesis",
 		"Exo": "Exodus",
 		"Lev": "Leviticus",
@@ -188,138 +144,178 @@ func searchBibleForStr(searchString string, case_sensitive bool, map_of_verses *
 		"Jud": "Jude",
 		"Rev": "Revelation",
 	}
-	verseResponses := make(chan Verse, 100)
-	switch {
-	case case_sensitive:
-		for key, value := range *map_of_verses {
-			key = strings.Replace(key, "Judges", "Jdg", 1)
-			key = strings.Replace(key, "Philemon", "Phm", 1)
-			key = strings.Replace(key, "Son", "Sol", 1)
-			if strings.Contains(value, searchString) {
-				verseResponses <- Verse{
-					VerseName:    reverse_book_lookup[key[0:3]] + key[3:],
-					VerseContent: value,
+
+	//NOTE: Evaluate buffer size later
+	stringResponses := make(chan string, 10)
+	var wg sync.WaitGroup
+	// This function "populates" verseSearch Channel with verses to search
+	verses := maps.Keys(map_of_verses)
+
+	for i := 0; i < searchInstances; i++ {
+		wg.Add(1)
+		if caseSensitive {
+			go func(wg *sync.WaitGroup) {
+				defer wg.Done()
+				for key := range verses {
+					value := map_of_verses[key]
+					if strings.Contains(value, searchString) {
+						key = strings.Replace(key, "Judges", "Jdg", 1)
+						key = strings.Replace(key, "Philemon", "Phm", 1)
+						key = strings.Replace(key, "Son", "Sol", 1)
+						stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
+					}
 				}
-			}
-		}
-		break
-	case !case_sensitive:
-		for key, value := range *map_of_verses {
-			key = strings.Replace(key, "Judges", "Jdg", 1)
-			key = strings.Replace(key, "Philemon", "Phm", 1)
-			key = strings.Replace(key, "Son", "Sol", 1)
-			if strings.Contains(strings.ToLower(value), strings.ToLower(searchString)) {
-				verseResponses <- Verse{
-					VerseName:    reverse_book_lookup[key[0:3]] + key[3:],
-					VerseContent: value,
+			}(&wg) //pass in REFERENCE to our WaitGroup
+		} else {
+			searchString = strings.ToLower(searchString)
+			go func(wg *sync.WaitGroup) {
+				defer wg.Done()
+				for key := range verses {
+					value := strings.ToLower(map_of_verses[key])
+					if strings.Contains(value, searchString) {
+						key = strings.Replace(key, "Judges", "Jdg", 1)
+						key = strings.Replace(key, "Philemon", "Phm", 1)
+						key = strings.Replace(key, "Son", "Sol", 1)
+						stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
+					}
 				}
-			}
+			}(&wg) //pass in REFERENCE to our WaitGroup
 		}
 	}
+
+	//close the string channel once waitgroup is done
+	go func() {
+		wg.Wait()
+		close(stringResponses)
+	}()
 
 	// Collect results
-	var result []Verse
-
-	for res := range verseResponses { //in Go, this is a way of "waiting" for a new item in the channel
-		result = append(result, res)
+	var result strings.Builder
+	for res := range stringResponses {
+		result.WriteString(delimiter)
+		result.WriteString(res)
 	}
 
-	return result
+	return result.String()
 }
 
-type SearchRequest struct {
-	SearchMode     string   `json:"search_mode"`
-	SearchTerms    []string `json:"search_terms"`
-	GeneralOptions struct {
-		CaseSensitive bool `json:"case_sensitive"`
-		TrimSpaces    bool `json:"trim_spaces"`
-		//ordered?
-		//old/new testament?
-	} `json:"general_options"`
-	ModeOptions struct {
-		PlainSearchOptions struct {
-			CaseSensitive bool `json:"case_sensitive"`
-		} `json:"plain_search_options"`
-		AssocSearchOptions struct {
-			Radius int `json:"radius"`
-		} `json:"assoc_options"`
-	} `json:"mode_options"`
-}
+func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (string, error) {
+	//verse_specification = strings.Replace(verse_specification, "+", " ", 1)
+	if !strings.Contains(verse_specification, ":") {
+		err := fmt.Errorf("no colon found, input string probably isn't a verse")
+		return "", err
+	}
+	//try to use the raw specification first
+	if verse_result := mapOfVerses[verse_specification]; verse_result != "" {
+		return verse_result, nil
+	}
 
-type Verse struct {
-	VerseName    string `json:"verse_name"`
-	VerseContent string `json:"verse_content"`
-}
+	//if that fails, assume the request has a full book name and try to find info that way
+	verse_specification = strings.Replace(verse_specification, "Judges", "Jdg", 1)
+	verse_specification = strings.Replace(verse_specification, "Philemon", "Phm", 1)
+	verse_specification = strings.Replace(verse_specification, "Son", "Sol", 1)
+	verse_w_book_truncd := (strings.Split(verse_specification, " ")[0])[0:3] + " " + strings.Split(verse_specification, " ")[1]
+	if verse_result := mapOfVerses[verse_w_book_truncd]; verse_result != "" {
+		return verse_result, nil
+	}
 
-func encodeToJSON(response []Verse) string { //returns JSON to be sent to the user
-	jsonResponse, err := json.Marshal(response)
+	//and if THAT fails, assume the request has a full book name and a range of verses
+	//the following messy stanza just splits up a string with a verse, into its components (book, chapter, verse)
+	log.Println("Initial string lookup failed for: ", verse_w_book_truncd)
+	book := strings.Split(verse_w_book_truncd, " ")[0]
+	chapter, verse := func(input string) (string, string) {
+		right_side := strings.Split(input, " ")[1]
+		return strings.Split(right_side, ":")[0], strings.Split(right_side, ":")[1]
+	}(verse_specification)
+	chapter_i, _ := strconv.Atoi(chapter)
+	verse_i, err := strconv.Atoi(verse)
 	if err != nil {
-		log.Println("Error encoding to JSON:", err)
-		return ""
+		first_verse, _ := strconv.Atoi(strings.Split(verse, "-")[0])
+		last_verse, _ := strconv.Atoi(strings.Split(verse, "-")[1])
+		var composite_verse strings.Builder
+		for i := first_verse; i <= last_verse; i++ {
+			v, _ := loadVersebyBook(book, uint8(chapter_i), uint8(i), mapOfVerses)
+			composite_verse.WriteString(v)
+			composite_verse.WriteByte(' ')
+		}
+		return composite_verse.String(), nil
 	}
 
-	return string(jsonResponse)
+	return loadVersebyBook(book, uint8(chapter_i), uint8(verse_i), mapOfVerses)
 }
 
-func decodeFromJSON(data []byte) (SearchRequest, error) {
-	var request SearchRequest
-	err := json.Unmarshal(data, &request)
-	if err != nil {
-		return SearchRequest{}, err
-	}
-	return request, nil
+func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses map[string]string) (string, error) {
+	access_string := fmt.Sprint(book, " ", chapter, ":", VerseNumber)
+	return mapOfVerses[access_string], nil
 }
 
-func handler(map_of_verses *map[string]string) http.HandlerFunc {
+func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Received a new request")
+		log.Println("Received a new request: ")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 		start_time := time.Now()
-		body, err := io.ReadAll(r.Body)
+		fullRequestEncoded := strings.TrimPrefix(r.URL.String(), "/api")
+		fullRequestDecoded, err := url.QueryUnescape(fullRequestEncoded)
 		if err != nil {
-			http.Error(w, "Unable to read request body", http.StatusBadRequest)
+			fmt.Println("Error decoding:", err)
 			return
 		}
+		log.Println(fullRequestEncoded)
+		// Getting lazy with the parsing here. Review this later.
+		var requestString, searchMode string
+		options := strings.Split(fullRequestDecoded, "?")
+		for _, option := range options {
+			opt, value, _ := strings.Cut(option, "=")
+			if opt == "searchString" {
+				requestString = value
+			} else if opt == "searchMode" {
+				searchMode = value
+			}
+		}
 
-		fullRequest, err := decodeFromJSON(body)
+		fmt.Println("Actual request string:")
+		fmt.Println(requestString)
+		var response string
+		switch searchMode {
+		case "versesearch":
+			//options include: delimiter="string" and radius=int
+			response, err = loadVersebyStr(requestString, *map_of_verses)
+		case "stringsearch":
+			//options include: delimiter="string" and caseSensitive=true
+			delimiter := "\n\n"
+			caseSensitive := true
+			options := strings.Split(requestString, "?")
+			for _, option := range options {
+				opt, value, _ := strings.Cut(option, "=")
+				if opt == "delimiter" {
+					delimiter = value
+				} else if opt == "caseSensitive" {
+					caseSensitive = value == "true" //cool way to turn this string into a bool
+				}
+			}
+			response = searchBibleForStr(requestString, *map_of_verses, delimiter, caseSensitive)
+		case "neartermsearch":
+			break
+		}
 		if err != nil {
-			http.Error(w, "Unable to decode JSON", http.StatusBadRequest)
-			return
+			log.Println(err)
+			fmt.Fprintf(w, "Error retrieving verse: %s", requestString)
 		}
-
-		requestType := fullRequest.SearchMode
-		var response []Verse
-		//I could use a channel here, but don't see any explicit benefit for that
-		switch {
-		case requestType == "plain_search": //simple string searching
-			response = searchBibleForStr(fullRequest.SearchTerms[0], fullRequest.GeneralOptions.CaseSensitive, map_of_verses)
-			return
-		case requestType == "specified_search": //specifying verse to search for
-			response, err = loadVersebyStr(fullRequest.SearchTerms[0], map_of_verses)
-			return
-		case requestType == "assoc_search":
-			//this is where we access the radius and multiple search terms
-			return
-		default:
-			// do nothing
-		}
-
-		json_response := encodeToJSON(response)
 		elapsed := time.Since(start_time).Milliseconds()
 		//log.Println(verse)
 		log.Printf("Total execution time for lookup: %d ms - Completed.\n", elapsed)
-		fmt.Fprint(w, json_response)
+		fmt.Fprint(w, response)
 	}
 }
 
 func main() {
 	mapOfVerses := scanBibleFromTxtFile("bible/ESVBible.txt")
 
-	http.HandleFunc("/api/", handler(&mapOfVerses))
-	http.HandleFunc()
+	//http://localhost/api?searchMode=stringsearch?searchString=Shem?caseSensitive=true
+	http.HandleFunc("/api", requestHandler(&mapOfVerses))
 
 	log.Println("Starting server on :80")
 	if err := http.ListenAndServe(":80", nil); err != nil {

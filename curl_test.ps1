@@ -19,10 +19,8 @@ $verses = @(
 while ($true) {
     $verses | ForEach-Object -ThrottleLimit 10 -Parallel {
         $verse = $_
-        # Replace spaces with + for URL encoding
-        $encoded_verse = $verse -replace ' ', '+'
-        #$url = "http://localhost/api/$encoded_verse"
-        $url = "https://esv.obky-gas.com/api/$encoded_verse"
+        $encoded_verse = $verse -replace ' ', '%20'
+        $url = "http://localhost/api?searchMode=stringsearch?searchString=$encoded_verse%20?caseSensitive=true"
         Write-Output "Fetching data for verse: $encoded_verse"
         Invoke-RestMethod -Method Get -Uri $url
         Write-Output "`n"

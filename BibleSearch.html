@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
-	<head>
-		<title>Search the ESV Bible</title>
+<head>
+    <title>Search the ESV Bible</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <link
@@ -16,128 +16,312 @@
         margin: 0;
         padding: 0;
     }
+    #searchControls {
+        display: flex;
+        flex-direction: column; /* Stack controls vertically */
+        gap: 10px; /* Spacing between control groups */
+        margin-bottom: 10px;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .control-group label {
+        color: #ffffff;
+        margin-right: 5px;
+        min-width: 120px; /* Ensure labels are aligned */
+        text-align: right;
+    }
+
+    .control-group select,
+    .control-group input[type="text"],
+    .control-group input[type="number"] {
+        background-color: #444444;
+        color: #ffffff;
+        border: 1px solid #666666;
+        padding: 8px;
+        border-radius: 5px;
+        flex-grow: 1; /* Allow input fields to grow */
+        max-width: 200px; /* Limit max width for input fields if needed */
+    }
+
+    .control-group select {
+        flex-grow: 1; /* Allow select to grow */
+        max-width: 200px;
+    }
+
+    /* Style for checkboxes if you decide to use them instead of dropdown for boolean */
+    .control-group input[type="checkbox"] {
+        width: 18px; /* Adjust as needed */
+        height: 18px;
+    }
+
+    #searchInputContainer {
+        margin-bottom: 10px; /* Add space below search input container */
+    }
+
+
     </style>
-	<script>
-    i = 0;
-    function searchTerm() {
+    <script>
         i = 0;
-        const input = document.getElementById('searchInput').value.replaceAll(" ","+");
-        const capitalLettersPresent = /[A-Z]/;
-        //this is my lazy way of searching for both caps and non-caps version of what was typed
-        if (capitalLettersPresent.test(input)) {
-            var verseContainer = document.querySelector('.items');
-            verseContainer.innerHTML = '';
-            searchBible(input.toLowerCase(), deleteOld=false);
-            searchBible(input, deleteOld=false);
-        } else {
-            searchBible(input);
-        }
-    }
-    async function searchBible(input, deleteOld=true) {
-        const url = `https://esv.obky-gas.com/api/${input}`;
-        try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
+        const bookOptions = [ // Array of Bible book options for dropdown
+            "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
+            "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon",
+            "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+            "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians", "1 Timothy", "2 Timothy", "Titus", "Philemon",
+            "Hebrews", "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"
+        ];
+
+
+        function search() {
+            i = 0;
+            const searchMode = document.getElementById('searchMode').value;
+            let input = encodeURIComponent(document.getElementById('searchInput').value);
+            let caseSensitive, trimSpaces, radius, book, chapterStart, verseStart, verseEnd;
+            if (searchMode === 'exactString') {
+                caseSensitive = document.getElementById('caseSensitive').value;
+                trimSpaces = document.getElementById('trimSpaces').value;
+                delimiter = encodeURIComponent(document.getElementById('delimiter').value);
+                if (trimSpaces === 'true') {input = input.trim();}
+                requestString = `searchMode=stringsearch?searchString=${input}?caseSensitive=${caseSensitive}?delimiter=${delimiter}`;
+                sendRequest(requestString, false, delimiter); // deleteOld=false
+            } else if (searchMode === 'nearTerms') {
+                radius = document.getElementById('radius').value;
+            } else if (searchMode === 'exactVerse') {
+                book = document.getElementById('bookSelect').value;
+                chapterStart = document.getElementById('chapterStart').value;
+                verseStart = document.getElementById('verseStart').value;
+                verseEnd = document.getElementById('verseEnd').value;
             }
-            const data = await response.text();
-            displayVerses(data, deleteOld);
-        } catch (error) {
-            console.error('There was a problem with the fetch operation:', error);
-        }
-    }
 
-    function displayVerses(data, deleteOld=true) {
-        const itemsContainer = document.querySelector('.items');
-        if (deleteOld) {
-            console.log("Deleting existing verses...")
-            itemsContainer.innerHTML = '';
-        } // Clear previous results
-        else {console.log("Not deleting existing verses...")}
 
-        const verses = data.split('\n\n'); // Assuming each verse is on a new line
-        verses.forEach(verse => {
-            if (verse !== '') {
-                const [reference, verseText] = verse.split(' - ');
-                const item = document.createElement('div');
-                item.className = 'inner';
-                verse_id=`return_verse_${i++}`;
-                item.id=verse_id;
-                item.setAttribute("onclick", `expandVerse('${verse_id}')`);
-
-                const heading = document.createElement('h3');
-                heading.textContent = reference;
-
-                const paragraph = document.createElement('p');
-                paragraph.textContent = verseText;
-
-                item.appendChild(heading);
-                item.appendChild(paragraph);
-                itemsContainer.appendChild(item);
+            console.log("Search Text:", input);
+            console.log("Search Mode:", searchMode);
+            if (searchMode === 'exactString') {
+                console.log("Case Sensitive:", caseSensitive);
+                console.log("Trim Spaces:", trimSpaces);
+            } else if (searchMode === 'nearTerms') {
+                console.log("Radius:", radius);
+            } else if (searchMode === 'exactVerse') {
+                console.log("Book:", book);
+                console.log("Chapter Start:", chapterStart);
+                console.log("Verse Start:", verseStart);
+                console.log("Verse End:", verseEnd);
             }
+
+        }
+        //const website_root = "https://esv.obky-gas.com"
+        const website_root = "http://localhost"
+        async function sendRequest(input, deleteOld=true, delimiter="\n\n") {
+            const url = `${website_root}/api?${input}`; 
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.text();
+                displayVerses(data, deleteOld, delimiter);
+            } catch (error) {
+                console.error('There was a problem with the fetch operation:', error);
+            }
+        }
+
+        function displayVerses(data, deleteOld=true, delimiter="\n\n") {
+            const itemsContainer = document.querySelector('.items');
+            if (deleteOld) {
+                console.log("Deleting existing verses...")
+                itemsContainer.innerHTML = '';
+            } // Clear previous results
+
+            const verses = data.split(delimiter); // Assuming each verse is on a new line
+            verses.forEach(verse => {
+                if (verse !== '') {
+                    const [reference, verseText] = verse.split(' - ');
+                    const item = document.createElement('div');
+                    item.className = 'inner';
+                    verse_id=`return_verse_${i++}`;
+                    item.id=verse_id;
+                    item.setAttribute("onclick", `expandVerse('${verse_id}')`);
+
+                    const heading = document.createElement('h3');
+                    heading.textContent = reference;
+
+                    const paragraph = document.createElement('p');
+                    paragraph.textContent = verseText;
+
+                    item.appendChild(heading);
+                    item.appendChild(paragraph);
+                    itemsContainer.appendChild(item);
+                }
+            });
+        }
+
+        async function expandVerse(verse_id) {
+            console.log(`Expanding ${verse_id}`)
+            const verseDiv = document.getElementById(verse_id)
+            const h3 = verseDiv.children[0] //this should return our verse name
+            verse_name = h3.innerText
+            // our Go backend is super-optimized, at the cost of not being super robust
+            // for that reason, we've got to "re-parse" our verse title into something usable by the backend
+            // that just means that 1 John 3:16 should turn into 1Jo 3:16
+            // UNLESS the book is judges or Philippians, in which case we leave the whole name
+            // to prevent ambiguity
+            if (verse_name.indexOf("Judges") !== -1 || verse_name.indexOf("Philippians") !== -1) {
+                book_name  = verse_name.substring(0,verse_name.indexOf(" "))
+            } else {
+                book_name  = verse_name.replaceAll(" ","").substring(0,3)
+            }
+            chapter_num = verse_name.substring(verse_name.lastIndexOf(" ") + 1,verse_name.indexOf(":"))
+            verse_num  = verse_name.substring(verse_name.indexOf(":") + 1)
+            console.log("verse_num:", verse_num);
+            if (verse_num.indexOf("-") !== -1) {
+                starting_verse = parseInt(verse_num.substring(0,verse_num.indexOf("-"))) - 1
+                if (starting_verse <= 0) {starting_verse = 1}
+                ending_verse = parseInt(verse_num.substring(verse_num.indexOf("-") + 1)) + 1
+                verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+            } else {
+                starting_verse = parseInt(verse_num) - 1
+                ending_verse = parseInt(verse_num) + 1
+                verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
+            }
+            console.log("book_name:", book_name);
+            console.log("starting_verse:", starting_verse);
+            console.log("ending_verse:", ending_verse);
+            console.log("verse_request_string:", verse_request_string);
+
+            const url = `https://esv.obky-gas.com/api/${verse_request_string}`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.text();
+                var p = verseDiv.children[1];
+                p.innerText = data;
+                h3.innerText = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse
+            } catch (error) {
+                console.error('There was a problem with the fetch operation:', error);
+            }
+        }
+
+        function updateControlsVisibility() {
+            const searchMode = document.getElementById('searchMode').value;
+            const exactStringOptions = document.getElementById('exactStringOptions');
+            const nearTermsOptions = document.getElementById('nearTermsOptions');
+            const exactVerseOptions = document.getElementById('exactVerseOptions');
+            const searchInputContainer = document.getElementById('searchInputContainer'); // Get searchInput container
+
+            exactStringOptions.style.display = 'none';
+            nearTermsOptions.style.display = 'none';
+            exactVerseOptions.style.display = 'none';
+            searchInputContainer.style.display = 'block'; // Default: show search input
+
+            if (searchMode === 'exactString') {
+                exactStringOptions.style.display = 'block';
+            } else if (searchMode === 'nearTerms') {
+                nearTermsOptions.style.display = 'block';
+            } else if (searchMode === 'exactVerse') {
+                exactVerseOptions.style.display = 'block';
+                searchInputContainer.style.display = 'none'; // Hide search input for exact verse search
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchModeSelect = document.getElementById('searchMode');
+            searchModeSelect.addEventListener('change', updateControlsVisibility);
+            updateControlsVisibility(); // Call on page load to set initial visibility
+
+            const bookSelect = document.getElementById('bookSelect');
+            bookOptions.forEach(book => {
+                const option = document.createElement('option');
+                option.value = book;
+                option.textContent = book;
+                bookSelect.appendChild(option);
+            });
         });
-    }
-    async function expandVerse(verse_id) {
-        console.log(`Expanding ${verse_id}`)
-        const verseDiv = document.getElementById(verse_id)
-        const h3 = verseDiv.children[0] //this should return our verse name
-        verse_name = h3.innerText
-        // our Go backend is super-optimized, at the cost of not being super robust
-        // for that reason, we've got to "re-parse" our verse title into something usable by the backend
-        // that just means that 1 John 3:16 should turn into 1Jo 3:16
-        // UNLESS the book is judges or Philippians, in which case we leave the whole name
-        // to prevent ambiguity 
-        if (verse_name.indexOf("Judges") !== -1 || verse_name.indexOf("Philippians") !== -1) {
-            book_name   = verse_name.substring(0,verse_name.indexOf(" "))
-        } else {
-            book_name   = verse_name.replaceAll(" ","").substring(0,3)
-        }
-        chapter_num = verse_name.substring(verse_name.lastIndexOf(" ") + 1,verse_name.indexOf(":"))
-        verse_num   = verse_name.substring(verse_name.indexOf(":") + 1)
-        console.log("verse_num:", verse_num);
-        if (verse_num.indexOf("-") !== -1) {
-            starting_verse = parseInt(verse_num.substring(0,verse_num.indexOf("-"))) - 1
-            if (starting_verse <= 0) {starting_verse = 1}
-            ending_verse = parseInt(verse_num.substring(verse_num.indexOf("-") + 1)) + 1
-            verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
-        } else {
-            starting_verse = parseInt(verse_num) - 1
-            ending_verse = parseInt(verse_num) + 1
-            verse_request_string = book_name + "+" + chapter_num + ":" + starting_verse + "-" + ending_verse
-        }
-        console.log("book_name:", book_name);
-        console.log("starting_verse:", starting_verse);
-        console.log("ending_verse:", ending_verse);
-        console.log("verse_request_string:", verse_request_string);
-        
-        const url = `https://esv.obky-gas.com/api/${verse_request_string}`;
-        try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            const data = await response.text();
-            var p = verseDiv.children[1];
-            p.innerText = data;
-            h3.innerText = book_name + " " + chapter_num + ":" + starting_verse + "-" + ending_verse
-        } catch (error) {
-            console.error('There was a problem with the fetch operation:', error);
-        }
-    }
-</script>
+
+
+    </script>
 </head>
-	</head>
-	<body class="is-preload">
-        <div id="wrapper" class="divided">
+<body class="is-preload">
+    <div id="wrapper" class="divided">
         <section class="wrapper style1 align-center color7 invert" id="verses">
-          <div class="inner">
-            <h2>ESV Bible Search</h2>
-			<div>
-				<input type="text" id="searchInput" placeholder="Search for a term or word...">
-				<button type="button" onclick="searchTerm()">Search</button>
-			</div>
-          </div>
+            <div class="inner">
+                <h2>ESV Bible Search</h2>
+
+                <div id="searchControls">
+                    <div class="control-group">
+                        <label for="searchMode">Search Mode:</label>
+                        <select id="searchMode">
+                            <option value="exactString">Exact String Search</option>
+                            <option value="nearTerms">Near-Terms Search</option>
+                            <option value="exactVerse">Exact Verse Search</option>
+                        </select>
+                    </div>
+
+                    <div id="exactStringOptions" style="display: none;">
+                        <div class="control-group">
+                            <label for="caseSensitive">Case Sensitive:</label>
+                            <select id="caseSensitive">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="trimSpaces">Trim Spaces:</label>
+                            <select id="trimSpaces">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="delimiter">Delimiter:</label>
+                            <input type="text" id="delimiter" value="\n\n">
+                    </div>
+
+                    <div id="nearTermsOptions" style="display: none;">
+                        <div class="control-group">
+                            <label for="radius">Radius:</label>
+                            <select id="radius">
+                                <option value="1">1 verse</option>
+                                <option value="2">2 verses</option>
+                                <option value="5">5 verses</option>
+                                <option value="10">10 verses</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="exactVerseOptions" style="display: none;">
+                        <div class="control-group">
+                            <label for="bookSelect">Book:</label>
+                            <select id="bookSelect">
+                                </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="chapterStart">Chapter:</label>
+                            <input type="number" id="chapterStart" value="1">
+                        </div>
+                        <div class="control-group">
+                            <label for="verseStart">Start Verse:</label>
+                            <input type="number" id="verseStart" value="1">
+                        </div>
+                        <div class="control-group">
+                            <label for="verseEnd">End Verse:</label>
+                            <input type="number" id="verseEnd" value="1">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="searchInputContainer">  <input type="text" id="searchInput" placeholder="Enter search term or verse reference...">
+                    <button type="button" onclick="search()">Search</button>
+                </div>
+            </div>
         </section>
+        <div class="items"></div>
     </div>
-	</body>
+</body>
 </html>
