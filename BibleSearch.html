@@ -39,7 +39,8 @@
 
     .control-group select,
     .control-group input[type="text"],
-    .control-group input[type="number"] {
+    .control-group input[type="number"],
+    .control-group input[type="checkbox"] {
         background-color: #444444;
         color: #ffffff;
         border: 1px solid #666666;
@@ -54,19 +55,35 @@
         max-width: 200px;
     }
 
-    /* Style for checkboxes if you decide to use them instead of dropdown for boolean */
-    .control-group input[type="checkbox"] {
-        width: 18px; /* Adjust as needed */
-        height: 18px;
-    }
-
     #searchInputContainer {
         margin-bottom: 10px; /* Add space below search input container */
     }
+    .btn-group {
+    display: flex;
+    gap: 8px;
+}
 
+.search-btn {
+    padding: 10px 15px;
+    border: 2px solid black;
+    background-color: transparent;
+    cursor: pointer;
+    transition: background 0.3s, color 0.3s;
+    font-size: 16px;
+}
+
+.search-btn:hover {
+    background-color: #f0f0f0;
+}
+
+.search-btn.active {
+    background-color: black;
+    color: white;
+}
 
     </style>
     <script>
+        //This needs lots of cleanup going forward.
         i = 0;
         const bookOptions = [ // Array of Bible book options for dropdown
             "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
@@ -76,28 +93,38 @@
             "Hebrews", "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"
         ];
 
-
         function search() {
             i = 0;
             const searchMode = document.getElementById('searchMode').value;
-            let input = encodeURIComponent(document.getElementById('searchInput').value);
+            let input = document.getElementById('searchInput').value;
             let caseSensitive, trimSpaces, radius, book, chapterStart, verseStart, verseEnd;
             if (searchMode === 'exactString') {
-                caseSensitive = document.getElementById('caseSensitive').value;
-                trimSpaces = document.getElementById('trimSpaces').value;
-                delimiter = encodeURIComponent(document.getElementById('delimiter').value);
-                if (trimSpaces === 'true') {input = input.trim();}
+                let caseSensitive = document.getElementById('caseSensitive').checked;
+                let trimSpaces = document.getElementById('trimSpaces').checked;
+                //delimiter = document.getElementById('delimiter').value;
+                delimiter = "\n\n";
+                if (trimSpaces) {input = input.trim();}
                 requestString = `searchMode=stringsearch?searchString=${input}?caseSensitive=${caseSensitive}?delimiter=${delimiter}`;
-                sendRequest(requestString, false, delimiter); // deleteOld=false
+                sendRequest(requestString, true, delimiter); // deleteOld=false
             } else if (searchMode === 'nearTerms') {
                 radius = document.getElementById('radius').value;
+                //delimiter = document.getElementById('delimiter').value;
+                delimiter = "\n\n";
             } else if (searchMode === 'exactVerse') {
                 book = document.getElementById('bookSelect').value;
                 chapterStart = document.getElementById('chapterStart').value;
                 verseStart = document.getElementById('verseStart').value;
                 verseEnd = document.getElementById('verseEnd').value;
+                if (book.indexOf("Judges") !== -1 || book.indexOf("Philippians") !== -1) {
+                    book  = book.substring(0,verse_name.indexOf(" "))
+                } else {
+                    book  = book.replaceAll(" ","").substring(0,3)
+                }
+                verse_num  = verse_name.substring(verse_name.indexOf(":") + 1)
+                verse_request_string = book + " " + chapterStart + ":" + verseStart + "-" + verseEnd;
+                requestString = `searchMode=versesearch?searchString=${verse_request_string}`;
+                sendRequest(requestString, false);
             }
-
 
             console.log("Search Text:", input);
             console.log("Search Mode:", searchMode);
@@ -117,7 +144,7 @@
         //const website_root = "https://esv.obky-gas.com"
         const website_root = "http://localhost"
         async function sendRequest(input, deleteOld=true, delimiter="\n\n") {
-            const url = `${website_root}/api?${input}`;
+            const url = `${website_root}/api?${encodeURIComponent(input)}`;
             try {
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -137,7 +164,7 @@
                 itemsContainer.innerHTML = '';
             } // Clear previous results
 
-            const verses = data.split(delimiter); // Assuming each verse is on a new line
+            const verses = data.split(delimiter);
             verses.forEach(verse => {
                 if (verse !== '') {
                     const [reference, verseText] = verse.split(' - ');
@@ -159,7 +186,7 @@
                 }
             });
         }
-
+        
         async function expandVerse(verse_id) {
             console.log(`Expanding ${verse_id}`)
             const verseDiv = document.getElementById(verse_id)
@@ -194,7 +221,7 @@
             console.log("ending_verse:", ending_verse);
             console.log("verse_request_string:", verse_request_string);
 
-            const url = `https://esv.obky-gas.com/api?searchMode=versesearch?searchString=${verse_request_string}`;
+            const url = `${website_root}/api?searchMode=versesearch?searchString=${verse_request_string}`;
             try {
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -267,22 +294,18 @@
                     <div id="exactStringOptions" style="display: none;">
                         <div class="control-group">
                             <label for="caseSensitive">Case Sensitive:</label>
-                            <select id="caseSensitive">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
+                            <input type="checkbox" id="caseSensitive">
                         </div>
+                        
                         <div class="control-group">
                             <label for="trimSpaces">Trim Spaces:</label>
-                            <select id="trimSpaces">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
-                        </div>
-                        <div class="control-group">
+                            <input type="checkbox" id="trimSpaces">
+                        </div>                        
+                        
+                        <!--<div class="control-group">
                             <label for="delimiter">Delimiter:</label>
                             <input type="text" id="delimiter" value="\n\n">
-                    </div>
+                    </div>-->
 
                     <div id="nearTermsOptions" style="display: none;">
                         <div class="control-group">
@@ -316,13 +339,12 @@
                         </div>
                     </div>
                 </div>
-
                 <div id="searchInputContainer">  <input type="text" id="searchInput" placeholder="Enter search term or verse reference...">
                     <button type="button" onclick="search()">Search</button>
                 </div>
             </div>
+            <div class="items"></div>
         </section>
-        <div class="items"></div>
     </div>
 </body>
 </html>
