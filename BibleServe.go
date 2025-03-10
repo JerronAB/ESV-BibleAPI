@@ -271,7 +271,7 @@ func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 		var radius int
 		delimiter := "\n\n"
 		caseSensitive := true
-		options := strings.Split(fullRequestDecoded, "?")
+		options := strings.Split(strings.TrimPrefix(fullRequestDecoded, "?"), "&")
 		for _, option := range options {
 			opt, value, _ := strings.Cut(option, "=")
 			if opt == "searchString" {
@@ -312,7 +312,7 @@ func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 func main() {
 	mapOfVerses := scanBibleFromTxtFile("bible/ESVBible.txt")
 
-	//http://localhost/api?searchMode=stringsearch?searchString=Shem?caseSensitive=true
+	//http://localhost/api?searchMode=stringsearch&searchString=Shem&caseSensitive=true
 	http.HandleFunc("/api", requestHandler(&mapOfVerses))
 
 	log.Println("Starting server on :80")
