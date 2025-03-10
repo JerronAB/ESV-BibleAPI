@@ -8,7 +8,7 @@ FROM alpine:latest
 RUN apk add --no-cache libc6-compat
 
 COPY --from=go_exec_builder /app/BibleServe /app/BibleServe
-COPY ESVBible.txt /app/ESVBible.txt
+COPY bible/ESVBible.txt /app/bible/ESVBible.txt
 COPY BibleSearch.html /app/BibleSearch.html
 
 WORKDIR /app
