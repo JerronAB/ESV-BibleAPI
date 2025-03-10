@@ -1,5 +1,5 @@
 # Use a multi-stage build for Go
-FROM golang:1.20 AS go_exec_builder
+FROM golang:1.24.1 AS go_exec_builder
 WORKDIR /app
 COPY BibleServe.go .
 COPY go.mod .
