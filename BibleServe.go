@@ -201,6 +201,8 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string, del
 
 func loadVersebyStr(verse_specification string, mapOfVerses map[string]string) (string, error) {
 	//verse_specification = strings.Replace(verse_specification, "+", " ", 1)
+	verse_specification, _ = url.QueryUnescape(verse_specification)
+	log.Printf("Verse specification: %s\n", verse_specification)
 	if !strings.Contains(verse_specification, ":") {
 		err := fmt.Errorf("no colon found, input string probably isn't a verse")
 		return "", err
@@ -251,7 +253,6 @@ func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses map[st
 
 func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Received a new request: ")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -263,6 +264,7 @@ func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 			fmt.Println("Error decoding:", err)
 			return
 		}
+		log.Println("Received a new request: ")
 		log.Println(fullRequestEncoded)
 		// Getting lazy with the parsing here. Review this later.
 		var searchMode, response, searchString string
