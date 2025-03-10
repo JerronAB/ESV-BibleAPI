@@ -265,45 +265,41 @@ func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 		}
 		log.Println(fullRequestEncoded)
 		// Getting lazy with the parsing here. Review this later.
-		var requestString, searchMode string
+		var searchMode, response, searchString string
+		var radius int
+		delimiter := "\n\n"
+		caseSensitive := true
 		options := strings.Split(fullRequestDecoded, "?")
 		for _, option := range options {
 			opt, value, _ := strings.Cut(option, "=")
 			if opt == "searchString" {
-				requestString = value
+				searchString = value
 			} else if opt == "searchMode" {
 				searchMode = value
+			} else if opt == "delimiter" {
+				delimiter = value
+			} else if opt == "caseSensitive" {
+				caseSensitive = value == "true" //cool way to turn this string into a bool
+			} else if opt == "radius" {
+				radius, _ = strconv.Atoi(value)
 			}
 		}
 
-		fmt.Println("Actual request string:")
-		fmt.Println(requestString)
-		var response string
 		switch searchMode {
 		case "versesearch":
 			//options include: delimiter="string" and radius=int
-			response, err = loadVersebyStr(requestString, *map_of_verses)
+			response, err = loadVersebyStr(searchString, *map_of_verses)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "Error retrieving verse: %s", searchString)
+			}
 		case "stringsearch":
 			//options include: delimiter="string" and caseSensitive=true
-			delimiter := "\n\n"
-			caseSensitive := true
-			options := strings.Split(requestString, "?")
-			for _, option := range options {
-				opt, value, _ := strings.Cut(option, "=")
-				if opt == "delimiter" {
-					delimiter = value
-				} else if opt == "caseSensitive" {
-					caseSensitive = value == "true" //cool way to turn this string into a bool
-				}
-			}
-			response = searchBibleForStr(requestString, *map_of_verses, delimiter, caseSensitive)
+			response = searchBibleForStr(searchString, *map_of_verses, delimiter, caseSensitive)
 		case "neartermsearch":
-			break
+			fmt.Print(radius)
 		}
-		if err != nil {
-			log.Println(err)
-			fmt.Fprintf(w, "Error retrieving verse: %s", requestString)
-		}
+
 		elapsed := time.Since(start_time).Milliseconds()
 		//log.Println(verse)
 		log.Printf("Total execution time for lookup: %d ms - Completed.\n", elapsed)
