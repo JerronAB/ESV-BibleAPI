@@ -277,7 +277,7 @@ func main() {
 
 	http.HandleFunc("/api/", handler(requests))
 
-	content, err := ioutil.ReadFile("BibleSearch.html")
+	content, err := os.ReadFile("BibleSearch.html")
 	if err != nil {
 		return
 	}
