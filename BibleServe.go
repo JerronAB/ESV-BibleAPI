@@ -151,7 +151,7 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string, del
 	// This function "populates" verseSearch Channel with verses to search
 	verses := maps.Keys(map_of_verses)
 
-	for i := 0; i < searchInstances; i++ {
+	for range searchInstances {
 		wg.Add(1)
 		if caseSensitive {
 			go func(wg *sync.WaitGroup) {
