@@ -1,15 +1,16 @@
 # Use a multi-stage build for Go
-FROM golang:1.20 AS go_exec_builder
+FROM golang:1.24.1 AS go_exec_builder
 WORKDIR /app
 COPY BibleServe.go .
+COPY go.mod .
+COPY go.sum .
 RUN go build -o BibleServe BibleServe.go
 
 FROM alpine:latest
 RUN apk add --no-cache libc6-compat
 
 COPY --from=go_exec_builder /app/BibleServe /app/BibleServe
-COPY ESVBible.txt /app/ESVBible.txt
-COPY BibleSearch.html /app/BibleSearch.html
+COPY bible/ESVBible.txt /app/bible/ESVBible.txt
 
 WORKDIR /app
 
