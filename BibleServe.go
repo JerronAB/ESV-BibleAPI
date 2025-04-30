@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,7 +76,7 @@ func scanBibleFromTxtFile(file_name string) map[string]string {
 	return createMapOfVerses(&bible)
 }
 
-func searchBibleForStr(searchString string, map_of_verses map[string]string, delimiter string, caseSensitive bool) string {
+func searchBibleForStr(searchString string, mapOfVerses map[string]string, delimiter string, caseSensitive bool) string {
 	reverse_book_lookup := map[string]string{
 		"Gen": "Genesis",
 		"Exo": "Exodus",
@@ -146,10 +147,10 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string, del
 	}
 
 	//NOTE: Evaluate buffer size later
-	stringResponses := make(chan string, 10)
+	stringResponses := make(chan string, 100)
 	var wg sync.WaitGroup
 	// This function "populates" verseSearch Channel with verses to search
-	verses := maps.Keys(map_of_verses)
+	verses := maps.Keys(mapOfVerses)
 
 	for range searchInstances {
 		wg.Add(1)
@@ -157,7 +158,7 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string, del
 			go func(wg *sync.WaitGroup) {
 				defer wg.Done()
 				for key := range verses {
-					value := map_of_verses[key]
+					value := mapOfVerses[key]
 					if strings.Contains(value, searchString) {
 						key = strings.Replace(key, "Judges", "Jdg", 1)
 						key = strings.Replace(key, "Philemon", "Phm", 1)
@@ -167,16 +168,17 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string, del
 				}
 			}(&wg) //pass in REFERENCE to our WaitGroup
 		} else {
+			//NOT case sensitive
 			searchString = strings.ToLower(searchString)
 			go func(wg *sync.WaitGroup) {
 				defer wg.Done()
 				for key := range verses {
-					value := strings.ToLower(map_of_verses[key])
-					if strings.Contains(value, searchString) {
+					lowercaseVerse := strings.ToLower(mapOfVerses[key])
+					if strings.Contains(lowercaseVerse, searchString) {
 						key = strings.Replace(key, "Judges", "Jdg", 1)
 						key = strings.Replace(key, "Philemon", "Phm", 1)
 						key = strings.Replace(key, "Son", "Sol", 1)
-						stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + value
+						stringResponses <- reverse_book_lookup[key[0:3]] + key[3:] + " - " + mapOfVerses[key]
 					}
 				}
 			}(&wg) //pass in REFERENCE to our WaitGroup
@@ -189,7 +191,8 @@ func searchBibleForStr(searchString string, map_of_verses map[string]string, del
 		close(stringResponses)
 	}()
 
-	// Collect results
+	// Collect results; stringResponses is a channel of strings
+	// so the builder builds *as it receives,* very cool
 	var result strings.Builder
 	for res := range stringResponses {
 		result.WriteString(delimiter)
@@ -251,6 +254,111 @@ func loadVersebyBook(book string, chapter, VerseNumber uint8, mapOfVerses map[st
 	return mapOfVerses[access_string], nil
 }
 
+func loadNearTermVerses(searchTerms []string, radius int, delimiter string, caseSensitive bool, mapOfVerses map[string]string) (string, error) {
+	//search for one term (largest/most distinct), then search the other verses, for other terms, in a diameter around that term
+	//determine "primary" (most likely to be unique) search term
+	//for now that's just determined based on size
+	primarySearchTerm := searchTerms[0]
+	primarySearchTermIndex := 0
+	for index, term := range searchTerms[1:] {
+		if len(term) > len(primarySearchTerm) {
+			primarySearchTerm = term
+			primarySearchTermIndex = index + 1 //add 1 because we shifted the array when looping
+		}
+	}
+	searchTerms = slices.Delete(searchTerms, primarySearchTermIndex, primarySearchTermIndex+1)
+	//now search for primary term
+	fmt.Println("Utilizing primary search term:", primarySearchTerm)
+	primaryMatchedVerses := []string{}
+	for key, verse := range mapOfVerses {
+		if !caseSensitive {
+			verse = strings.ToLower(verse)
+			primarySearchTerm = strings.ToLower(primarySearchTerm)
+		}
+		if strings.Contains(verse, primarySearchTerm) {
+			primaryMatchedVerses = append(primaryMatchedVerses, key)
+		}
+	}
+	fmt.Println("Verses in which primary term was found:", primaryMatchedVerses)
+	fmt.Println("Now searching surrounding verses for:", searchTerms)
+	//for each verse had a primary term, we search the surrounding verses +/- radius
+	var matchedVersesLists [][]string //list of lists of strings
+	for _, verseID := range primaryMatchedVerses {
+		//I know the next two lines are not go-idiomatic; they are dense and don't handle errors at all.
+		//I'm keeping them for now until I have the entire process figured out.
+		startVerse, _ := strconv.Atoi(strings.Split(verseID, ":")[1])
+		startVerse -= radius
+		endVerse, _ := strconv.Atoi(strings.Split(verseID, ":")[1])
+		endVerse += radius
+		//now begin iterating and searching
+		matchedVerses := []string{verseID}
+		fmt.Println("")
+		fmt.Print("Searching ", strings.Split(verseID, ":")[0], " from verse ", startVerse, " to verse ", endVerse)
+		for i := startVerse; i <= endVerse; i++ {
+			if i <= 0 {
+				continue //skip looking up verse if it's negative or 0
+			}
+			verseToSearch := strings.Split(verseID, ":")[0] + ":" + strconv.Itoa(i)
+			verseText := mapOfVerses[verseToSearch]
+			if !caseSensitive {
+				verseText = strings.ToLower(verseText)
+				for index, term := range searchTerms {
+					searchTerms[index] = strings.ToLower(term)
+				}
+			}
+			fmt.Println("")
+			fmt.Print("Searching verse: ", verseToSearch, " for terms: ", searchTerms)
+			for _, term := range searchTerms {
+				if strings.Contains(verseText, term) {
+					matchedVerses = append(matchedVerses, verseToSearch)
+					fmt.Print(" - Found!")
+				}
+			}
+		}
+		matchedVersesLists = append(matchedVersesLists, matchedVerses)
+		fmt.Println("")
+		fmt.Println("MatchedVersesList:", matchedVerses)
+	}
+	//now we have a list of verses that contained terms, near a primary term
+	var result strings.Builder
+	for _, verseList := range matchedVersesLists {
+		if len(verseList) <= 1 {
+			//this means no match was found for the non-primary terms
+			fmt.Println(" - No matches found.")
+			continue
+		}
+		//determine "smallest" and "largest" verse in this list
+		verseInts := make([]int, 0)
+		for _, verse := range verseList {
+			verseNumber, _ := strconv.Atoi(strings.Split(verse, ":")[1]) //another not-golike line
+			verseInts = append(verseInts, verseNumber)
+		}
+		slices.Sort(verseInts)
+		versePrfx := strings.Split(verseList[0], ":")[0]
+		//get first and last element ^
+		//add together in a string
+		//run loadVersebyStr and build string
+		firstVerse := strconv.Itoa(verseInts[0])
+		lastVerse := strconv.Itoa(verseInts[len(verseInts)-1])
+		var queryString string
+		if firstVerse == lastVerse {
+			queryString = versePrfx + ":" + firstVerse
+		} else {
+			queryString = versePrfx + ":" + firstVerse + "-" + lastVerse
+		}
+		fmt.Println("QueryString: ", queryString)
+		compiledVerses, err := loadVersebyStr(queryString, mapOfVerses)
+		if err != nil {
+			fmt.Println("Error loading :", err)
+		}
+		result.WriteString(queryString + " - ")
+		result.WriteString(compiledVerses)
+		result.WriteString(delimiter)
+	}
+	//fmt.Println(result.String())
+	return result.String(), nil
+}
+
 func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -299,7 +407,15 @@ func requestHandler(map_of_verses *map[string]string) http.HandlerFunc {
 			//options include: delimiter="string" and caseSensitive=true
 			response = searchBibleForStr(searchString, *map_of_verses, delimiter, caseSensitive)
 		case "neartermsearch":
-			fmt.Print(radius)
+			searchTerms := strings.Split(searchString, ";")
+			response, err = loadNearTermVerses(searchTerms, radius, delimiter, caseSensitive, *map_of_verses)
+			if err != nil {
+				log.Println(err)
+				fmt.Fprintf(w, "Error retrieving verse: %s", searchString)
+			}
+			// searchBibleForStr returns a string; we want something a little more structured to handle
+			// searching in a radius. As always, this is an effort to increase code size/footprint
+			// for the sake of performance
 		}
 
 		elapsed := time.Since(start_time).Milliseconds()
